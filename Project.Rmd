@@ -1,0 +1,50 @@
+---
+title: "Projet Stats"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+# Lecture jeu de données
+data = read.table("DataEnergy-Students.csv", header = TRUE, sep = ",")
+# Renommage colonne
+colnames(data)[9] = "Energy"
+# Mise sous forme de facteur des données catégorielles
+data$Energy.efficiency = as.factor(data$Energy.efficiency)
+data$Glazing.area.distr = as.factor(data$Glazing.area.distr)
+data$orientation = as.factor(data$orientation)
+# Correction du jeu de données
+data$Glazing.area[which(data$Glazing.area.distr == 0)] = 0
+# Infos sur le jeu de données
+str(data)
+```
+Le jeu de données est composé de 768 batiments avec chacun 10 variables.
+
+Quantitatives :
+- Relative.compactness : compacité relative à un cube de même volume (FORMULE)
+- Surface.area : surface au sol
+- Wall.area : surface de mur extérieurs
+- Roof.area : surface de toit
+- Overall.height : hauteur du batiment (soit 3.5 soit 7 m)
+- Glazing.area : Surface vitrée (en pourcentage de la surface au sol)
+- Energy : Energie consommée (sortie du problème)
+Catégorielles :
+- orientation : orientation de la maison (Nord, Sud, Est, Ouest)
+- Glazing.area.distr : Distribution des vitres (Uniforme, ou plus d'un coté)
+- Energy.efficiency : Indicateur de l'énergie consommées (de A à G)
+
+```{r}
+summary(data)
+```
+
+Même nombre de batiments faisant face à chaque orientation. Même nombre de batiments avec les différentes répartitions de fenêtres, sauf les batiments sans fenêtres.
+
+```{r}
+
+```
+
