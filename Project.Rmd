@@ -14,6 +14,7 @@ library(esquisse)
 ```{r}
 # Lecture jeu de données
 data = read.table("DataEnergy-Students.csv", header = TRUE, sep = ",")
+data
 # Renommage colonne
 colnames(data)[9] = "Energy"
 # Mise sous forme de facteur des données catégorielles
@@ -48,10 +49,55 @@ Même nombre de batiments faisant face à chaque orientation. Même nombre de ba
 
 ```{r}
 ggplot(data) +
- aes(x = Glazing.area, y = Energy, colour = Overall.height) +
+ aes(x = Glazing.area, y = Energy, colour = as.factor(Overall.height)) +
  geom_point(size = 1L) +
- scale_color_gradient() +
  theme_minimal() + geom_smooth(method = "lm")
 ```
 
 On voit que la surface vitrée à une influence sur l'énergie consommée.
+
+```{r}
+boxplot(Energy ~ Overall.height, data = data)
+```
+
+
+```{r}
+ggplot(data) +
+ aes(x = Relative.compactness, y = Energy) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ theme_minimal()
+```
+
+On voit qu'il semble y avoir 12 groupes de points assez distincts.
+Nous allons essayer de mettre en évidence ces 12 groupes en réalisant un clustering par la méthode des k-means.
+
+```{r}
+hc = hclust(dist(data[c(1,2,3,4,5,7,9)]), method = "ward.D")
+plot(hc)
+plot(sort(hc$height, decreasing = TRUE)[1:20])
+```
+
+```{r}
+class2 = cutree(hc, k = 2)
+ggplot(data) +
+ aes(x = Surface.area, y = Energy) +
+ geom_point(size = 1L, colour = class2) +
+ theme_minimal()
+class4 = cutree(hc, k = 4)
+ggplot(data) +
+ aes(x = Surface.area, y = Energy) +
+ geom_point(size = 1L, colour = class4) +
+ theme_minimal()
+```
+
+```{r}
+library("FactoMineR")
+res.acp <- PCA(data[c(1,2,3,4,5,7,9)],scale.unit=T,ncp=8)
+barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie")
+barplot(res.acp$eig[,"cumulative percentage of variance"], main="Pourcentage d'inertie cumulé")
+sum(res.acp$eig[,"percentage of variance"][1:3])
+plot(res.acp, choix="var", axes = c(1,2))
+plot(res.acp, choix="var", axes = c(2,3))
+plot(res.acp, choix="var", axes = c(1,3))
+```
+
