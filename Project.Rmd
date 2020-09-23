@@ -116,9 +116,9 @@ plot(res.acp, choix="var", axes = c(1,3))
 ```
 
 ```{r}
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="class2")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="class2")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class2")
+plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Energy.efficiency")
+plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Energy.efficiency")
+plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.efficiency")
 ```
 
 Première composante principale : Hauteur, compacité (en positif) et surface totale, surface de toit (en négatif)
@@ -126,7 +126,7 @@ Deuxième composante principale : Surface de murs
 Troisème composante principale : Surface vitrée
 
 ```{r}
-kmres = kmeans(data[,c(1:5,7)], centers = 2)
+kmres = kmeans(data[,c(1:5,7)], centers = 7)
 pairs(data[,quanti], col = kmres$cluster)
 ```
 
