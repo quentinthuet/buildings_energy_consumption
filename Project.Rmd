@@ -9,11 +9,12 @@ library(ggplot2)
 library(esquisse)
 ```
 
-## R Markdown
+# Data analysis
 
 ```{r}
 # Lecture jeu de données
-data = read.table("DataEnergy-Students.csv", header = TRUE, sep = ",")
+setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
+data = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
 data
 # Mise sous forme de facteur des données catégorielles
 data$Energy.efficiency = as.factor(data$Energy.efficiency)
@@ -55,7 +56,7 @@ Même nombre de batiments faisant face à chaque orientation. Même nombre de ba
 
 ```{r}
 ggplot(data) +
- aes(x = Glazing.area, y = Load, colour = as.factor(Overall.height)) +
+ aes(x = Glazing.area, y = Energy, colour = as.factor(Overall.height)) +
  geom_point(size = 1L) +
  theme_minimal() + geom_smooth(method = "lm")
 ```
@@ -63,13 +64,13 @@ ggplot(data) +
 On voit que la surface vitrée à une influence sur l'énergie consommée.
 
 ```{r}
-boxplot(Load ~ Overall.height, data = data)
+boxplot(Energy ~ Overall.height, data = data)
 ```
 
 
 ```{r}
 ggplot(data) +
- aes(x = Relative.compactness, y = Load) +
+ aes(x = Relative.compactness, y = Energy) +
  geom_point(size = 1L, colour = "#0c4c8a") +
  theme_minimal()
 ```
@@ -86,17 +87,17 @@ plot(sort(hc$height, decreasing = TRUE)[1:20])
 ```{r}
 class2 = cutree(hc, k = 2)
 ggplot(data) +
- aes(x = Surface.area, y = Load) +
+ aes(x = Surface.area, y = Energy) +
  geom_point(size = 1L, colour = class2) +
  theme_minimal()
 class4 = cutree(hc, k = 4)
 ggplot(data) +
- aes(x = Surface.area, y = Load) +
+ aes(x = Surface.area, y = Energy) +
  geom_point(size = 1L, colour = class4) +
  theme_minimal()
 class12 = cutree(hc, k = 12)
 ggplot(data) +
- aes(x = Surface.area, y = Load) +
+ aes(x = Surface.area, y = Energy) +
  geom_point(size = 1L, colour = class12) +
  theme_minimal()
 ```
