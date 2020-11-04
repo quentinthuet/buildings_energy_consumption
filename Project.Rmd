@@ -71,29 +71,54 @@ boxplot(Energy ~ Overall.height, data = data)
 
 ## Léo : ACP
 
-```{r}
-library("FactoMineR")
-data$class2 = as.factor(class2)
-data$class4 = as.factor(class4)
-data$class12 = as.factor(class12)
-res.acp <- PCA(data,scale.unit=T,quali.sup=c(6,8,10,11,12,13),quanti.sup=9,ncp=8, graph=F)
-barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie")
-barplot(res.acp$eig[,"cumulative percentage of variance"], main="Pourcentage d'inertie cumulé")
-sum(res.acp$eig[,"percentage of variance"][1:3])
-plot(res.acp, choix="var", axes = c(1,2))
-plot(res.acp, choix="var", axes = c(2,3))
-plot(res.acp, choix="var", axes = c(1,3))
-```
+On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package \texttt{FactoMineR} qui contient toutes les fonctions nécessaires à la réalisation de notre ACP. On cherche d'abord combien d'axes principaux nous allons avoir besoin.
 
 ```{r}
+library("FactoMineR")
+par(mfrow=c(1,2))
+res.acp <- PCA(data,scale.unit=T,quali.sup=c(6,8,10),quanti.sup=9,ncp=8, graph=F)
+barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie", names.arg = seq(1,6), xlab = "Composantes principales")
+barplot(res.acp$eig[,"cumulative percentage of variance"],
+        main="Pourcentage d'inertie cumulé",
+        names.arg = seq(1,6), xlab = "Composantes principales")
+abline(h = 95, col = "red")
+print(paste("Pourcentage d'inertie expliquée par les trois premiers axes principaux :",res.acp$eig[,"cumulative percentage of variance"][3]))
+```
+
+On voit sur le premier graphe que l'inertie portée par les trois premiers axes principaux est prépondérante par rapport aux autres. D'après le graphe de pourcentage d'inertie cumulée, ils expliquent presque 99\% de l'inertie. Les deux premiers axes ne portent eux que 82\% de l'inertie. Ne choisir que deux axes effacerait trop d'informations. Nous allons donc poursuivre notre analyse sur les trois premiers axes principaux.
+
+Les graphes des variables nous donnent des informations très intéressantes sur les variables corrélées.
+
+```{r, fig.dim=c(2,2)}
+par(mfrow=c(1,2)) # PROBLEM
+plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = FALSE, title = "Graphe des variables (axes 1 et 2)")
+plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE, title = "Graphe des variables (axes 1 et 3)")
+plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE, title = "Graphe des variables (axes 2 et 3)")
+```
+
+Les variables Relative.compactness, Overall.height, Surface.area et Roof.area semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
+
+Le second axe porte principalement la variable Wall.area, et le troisième la variable Glazing.area.
+
+Finalement, les deux premiers axes ont plutôt trait à la forme du bâtiment (surface au sol pour le premier et surface murée pour le second), tandis que le troisième axe correspond à la surface vitrée.
+
+Ainsi, l'énergie dépensée dépend d'abord de la forme du bâtiment, et ensuite de la surface vitrée.
+
+
+```{r}
+par(mfrow=c(1,2))
 plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Energy.efficiency")
 plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Energy.efficiency")
 plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.efficiency")
-```
 
-Première composante principale : Hauteur, compacité (en positif) et surface totale, surface de toit (en négatif)
-Deuxième composante principale : Surface de murs
-Troisème composante principale : Surface vitrée
+plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Glazing.area.distr")
+plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Glazing.area.distr")
+plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr")
+
+plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="orientation")
+plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="orientation")
+plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="orientation")
+```
 
 ## Quentin : clustering
 ### Analyse visuelle
