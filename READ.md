@@ -1,3 +1,6 @@
 Projet S7 ModIA
 
-YOUHOU
+Data analysis :
+1. Ababakar
+2. Léo
+3. Quentin
