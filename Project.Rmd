@@ -324,3 +324,29 @@ plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class12"
 ```
 
 Ici, on peut avoir la même observation que pour le découpage en 4 classes : le découpage est moins net que celui en 2 classes et se fait selon les axes 1 et 2.
+
+
+# Linear models
+
+```{r}
+model = lm(Energy ~ ., data = data[,quanti])
+summary(model)
+data$fitted = model$fitted.values
+```
+
+```{r}
+ggplot(data) +
+ aes(x = fitted, y = Energy) +
+ geom_point(size = 1L) +
+ theme_minimal() + geom_smooth(method = "lm")
+
+ggplot(data) +
+ aes(x = fitted, y = Energy, col = Glazing.area.distr) +
+ geom_point(size = 1L) +
+ theme_minimal() + geom_smooth(method = "lm")
+
+ggplot(data) +
+ aes(x = fitted, y = Energy, col = orientation) +
+ geom_point(size = 1L) +
+ theme_minimal() + geom_smooth(method = "lm")
+```
