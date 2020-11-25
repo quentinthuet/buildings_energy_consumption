@@ -11,6 +11,7 @@ library(FactoMineR)
 library(leaps)
 library(MASS)
 library(glmnet)
+library(gridExtra)
 ```
 
 # Data analysis
@@ -100,29 +101,42 @@ plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE, title = "Graphe 
 plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE, title = "Graphe des variables (axes 2 et 3)")
 ```
 
-Les variables Relative.compactness, Overall.height, Surface.area et Roof.area semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
+Les variables `Relative.compactness`, `Overall.height`, `Surface.area` et `Roof.area` semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
 
-Le second axe porte principalement la variable Wall.area, et le troisième la variable Glazing.area.
+Le second axe porte principalement la variable `Wall.area`, et le troisième la variable `Glazing.area`.
 
 Finalement, les deux premiers axes ont plutôt trait à la forme du bâtiment (surface au sol pour le premier et surface murée pour le second), tandis que le troisième axe correspond à la surface vitrée.
 
 Ainsi, l'énergie dépensée dépend d'abord de la forme du bâtiment, et ensuite de la surface vitrée.
 
+Nous pouvons également observer les graphes des individus. Nous représentons les différentes classes énergétiques par couleur.
+
 
 ```{r}
-par(mfrow=c(1,2))
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Energy.efficiency")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Energy.efficiency")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.efficiency")
+plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Energy.efficiency", label = "none")
+plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Energy.efficiency", label = "none")
+plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.efficiency", label = "none")
 
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Glazing.area.distr")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Glazing.area.distr")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr")
-
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="orientation")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="orientation")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="orientation")
+# plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Glazing.area.distr", label = "none")
+# plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Glazing.area.distr", label = "none")
+# plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr", label = "none")
+# 
+# plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="orientation", label = "none")
+# plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="orientation", label = "none")
+# plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="orientation", label = "none")
 ```
+
+On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G. Les maisons dont la consommation énergétique la plus faible possède des coordonnées négatives pour la première composante. Ces maisons sont celles qui ont une compacité relative plus faible, plus basses et avec une surface au sol plus élevée, comme on peut le voir sur les graphiques suivants :
+
+```{r}
+gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Relative.compactness", label = "none")
+gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Surface.area", label = "none")
+gg3 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Overall.height", label = "none")
+# grid.arrange(rbind(gg1, gg2, gg3,)) 
+# grid.arrange(grobs = list(gg1,gg2,gg3),ncol = 2, widths=c(10,10))
+grid.arrange(gg1,gg2,gg3,ncol = 2,widths=c(10,10))
+```
+
 
 ## Quentin : clustering
 ### Analyse visuelle
@@ -269,7 +283,7 @@ ggplot(data) +
  theme_minimal()
 ```
 
-Après plusieurs exécutions, k-means ne presque jamais le même résultat que le clustering hiérarchiques. Alors que le clustering hiérarchiques semble créer des classes pertinentes selon la surface des murs, le k-means réalise souvent un découpage moins pertinent. En effet, le découpage issu de k-means consiste souvent à séparer en deux les données, puis à séparer en trois un des deux groupes obtenus de façon assez arbitraire. Le découpage en 4 classes avec k-means est donc peu pertinent.
+Après plusieurs exécutions, k-means ne donne presque jamais le même résultat que le clustering hiérarchiques. Alors que le clustering hiérarchiques semble créer des classes pertinentes selon la surface des murs, le k-means réalise souvent un découpage moins pertinent. En effet, le découpage issu de k-means consiste souvent à séparer en deux les données, puis à séparer en trois un des deux groupes obtenus de façon assez arbitraire. Le découpage en 4 classes avec k-means est donc peu pertinent.
 
 
 ```{r}
@@ -387,26 +401,73 @@ anova(model_quanti_complet, lm(Energy ~ Surface.area + Wall.area + Overall.heigh
 #### Ridge
 
 ```{r}
+# centrage et réduction des données
 eng=scale(data["Energy"],center=T,scale=T)
 expli=scale(data[,c(1,2,3,5,7)],center=T,scale=T)
+
+# création du tableau de tau
 tau_seq <- seq(0, 1, by = 0.001)
+
+# regression ridge
 fitridge <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
-tau_min = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)$lambda.min
+
+# récupération du tau minimum par validation croisée
+ridge_cv = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+tau_min_ridge = ridge_cv$lambda.min
+print(tau_min_ridge)
+
+# affichage des estimations de tau
 dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)), theta=as.vector(t(fitridge$beta)),variable=rep(colnames(expli),each=length(fitridge$lambda)))
-ggplot(dfridge,aes(x=tau,y=theta,col=variable))+
-  geom_line()+
+ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
+  geom_line() +
+  geom_vline(xintercept = tau_min_ridge, linetype = "dotted", color = "red") +
+  xlim(c(0,tau_min_ridge+0.05))
   theme(legend.position="bottom")
+```
+
+```{r}
+# illustration de la meilleure valeur de tau
+df2=data.frame(tau=ridge_cv$lambda,MSE=ridge_cv$cvm,cvup=ridge_cv$cvup,cvlo=ridge_cv$cvlo)
+ggplot(df2)+
+  geom_line(aes(x=tau,y=MSE))+
+  geom_vline(xintercept = tau_min_ridge,col="red",linetype="dotted")+
+  geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
+  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
+  xlim(c(0,tau_min_ridge+0.05))+
+  ylim(c(0.115,0.155))
 ```
 
 
 #### Lasso
 
 ```{r}
-fitlasso <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
+# regression lasso
+fitlasso <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+
+# récupération du tau minimum par validation croisée
+lasso_cv = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+tau_min_lasso = lasso_cv$lambda.min
+print(tau_min_lasso)
+
+# affichage des estimations de tau
 dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)), theta=as.vector(t(fitlasso$beta)),variable=rep(colnames(expli),each=length(fitlasso$lambda)))
-ggplot(dflasso,aes(x=tau,y=theta,col=variable))+
-  geom_line()+
+ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
+  geom_line() +
+  geom_vline(xintercept = tau_min_lasso, linetype = "dotted", color = "red") +
+  xlim(c(0,tau_min_lasso+0.01))
   theme(legend.position="bottom")
+```
+
+```{r}
+# illustration de la meilleure valeur de tau
+df3=data.frame(tau=lasso_cv$lambda,MSE=lasso_cv$cvm,cvup=lasso_cv$cvup,cvlo=lasso_cv$cvlo)
+ggplot(df3)+
+  geom_line(aes(x=tau,y=MSE))+
+  geom_vline(xintercept = tau_min_lasso,col="red",linetype="dotted")+
+  geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
+  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
+  xlim(c(0,tau_min_lasso+0.05))+
+  ylim(c(0.115,0.155))
 ```
 
 
