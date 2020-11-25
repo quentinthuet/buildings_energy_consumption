@@ -454,4 +454,27 @@ plot(selectb,scale="adjr2",main="Backward adjusted R²")
 # model_reduit2
 # anova()
 ```
+```{r}
+# Modéle linéaire généralisée
+# Définition de Energy.efficiencyBIs
+data.mlg = data.frame(data, Energy.efficiency.bis = rep(0, nrow(data)))
+data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1"
+data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0"
+data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
+```
 
+```{r}
+#Statistique Descriptive
+boxplot(Relative.compactness~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Surface.area~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Wall.area~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Roof.area~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Overall.height~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Glazing.area~ Energy.efficiency.bis,data=data.mlg)
+boxplot(Energy~ Energy.efficiency.bis,data=data.mlg)
+mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
+```
+```{r}
+mlg_rg <- glm(Energy.efficiency.bis~(.-Roof.area),data=data.mlg,family=binomial(link=logit))
+summary(mlg_rg)
+```
