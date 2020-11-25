@@ -7,6 +7,10 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold")
 library(ggplot2)
 library(esquisse)
+library(FactoMineR)
+library(leaps)
+library(MASS)
+library(glmnet)
 ```
 
 # Data analysis
@@ -328,25 +332,126 @@ Ici, on peut avoir la même observation que pour le découpage en 4 classes : le
 
 # Linear models
 
+## Model depending on quantitatives variables
+
+### Selection de variables par critère BIC
+
 ```{r}
-model = lm(Energy ~ ., data = data[,quanti])
-summary(model)
-data$fitted = model$fitted.values
+model_quanti_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,quanti])
+summary(model_quanti_complet)
+data$fitted_quanti_complet = model_quanti_complet$fitted.values
+ggplot(data) +
+ aes(x = fitted_quanti_complet, y = Energy) +
+ geom_point(size = 1L) +
+ theme_minimal() + geom_smooth(method = "lm")
 ```
 
 ```{r}
+modselect_bic=stepAIC(model_quanti_complet,trace=TRUE,direction=c("backward"),k=log(nrow(data)))
+# selectf = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,quanti],nbest=1,nvmax=10,method="forward")
+# modselect_bic=stepAIC(model_quanti_complet,trace=TRUE,direction=c("backward"),k=log(nrow(data)))
+# plot(selectf,scale="bic",main="Forward BIC",)
+# plot(selectf,scale="Cp",main="Forward Cp")
+# plot(selectf,scale="adjr2",main="Forward adjusted R²")
+# model1f = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Glazing.area - Relative.compactness:Glazing.area
+#                                      - Surface.area:Glazing.area - Wall.area:Glazing.area, data = data)
+# model0f = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Glazing.area - Relative.compactness:Glazing.area
+#                                      - Relative.compactness:Wall.area - Surface.area:Glazing.area - Wall.area:Glazing.area, data = data)
+# 
+# selectb = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,quanti],nbest=1,nvmax=10,method="backward")
+# plot(selectb,scale="bic",main="Backward BIC", cex.axis = 0.5)
+# plot(selectb,scale="Cp",main="Backward Cp")
+# plot(selectb,scale="adjr2",main="Backward adjusted R²")
+# model1b = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Surface.area:Wall.area - Surface.area:Glazing.area
+#                                      - Wall.area:Overall.height - Overall.height:Glazing.area, data = data)
+# model1b = lm(Energy ~ (. - Roof.area)^2 - Relative.compactness - Overall.height - Surface.area:Wall.area - Surface.area:Glazing.area
+#                                      - Wall.area:Overall.height - Overall.height:Glazing.area, data = data)
+```
+
+```{r}
+model_reduit_bic = lm(Energy ~ Relative.compactness + Surface.area + Wall.area + Overall.height + 
+    Glazing.area + Relative.compactness:Surface.area + Relative.compactness:Wall.area + 
+    Relative.compactness:Overall.height + Relative.compactness:Glazing.area + 
+    Wall.area:Glazing.area, data = data)
+anova(model_reduit, model_quanti_complet)
+```
+
+
+```{r}
+anova(model_quanti_complet, lm(Energy ~ Surface.area + Wall.area + Overall.height + Relative.compactness:Surface.area
+                        + Relative.compactness:Overall.height + Surface.area:Overall.height, data = data))
+```
+
+### Selection de variable par regression regularisée
+
+#### Ridge
+
+```{r}
+eng=scale(data["Energy"],center=T,scale=T)
+expli=scale(data[,c(1,2,3,5,7)],center=T,scale=T)
+tau_seq <- seq(0, 1, by = 0.001)
+fitridge <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+tau_min = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)$lambda.min
+dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)), theta=as.vector(t(fitridge$beta)),variable=rep(colnames(expli),each=length(fitridge$lambda)))
+ggplot(dfridge,aes(x=tau,y=theta,col=variable))+
+  geom_line()+
+  theme(legend.position="bottom")
+```
+
+
+#### Lasso
+
+```{r}
+fitlasso <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
+dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)), theta=as.vector(t(fitlasso$beta)),variable=rep(colnames(expli),each=length(fitlasso$lambda)))
+ggplot(dflasso,aes(x=tau,y=theta,col=variable))+
+  geom_line()+
+  theme(legend.position="bottom")
+```
+
+
+## Model depending on all variables
+
+```{r}
+model_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)])
+summary(model_complet)
+data$fitted_complet = model_complet$fitted.values
 ggplot(data) +
- aes(x = fitted, y = Energy) +
+ aes(x = fitted_complet, y = Energy) +
  geom_point(size = 1L) +
  theme_minimal() + geom_smooth(method = "lm")
 
 ggplot(data) +
- aes(x = fitted, y = Energy, col = Glazing.area.distr) +
+ aes(x = fitted_complet, y = Energy, col = Glazing.area.distr) +
  geom_point(size = 1L) +
  theme_minimal() + geom_smooth(method = "lm")
 
 ggplot(data) +
- aes(x = fitted, y = Energy, col = orientation) +
+ aes(x = fitted_complet, y = Energy, col = orientation) +
  geom_point(size = 1L) +
  theme_minimal() + geom_smooth(method = "lm")
 ```
+
+```{r}
+model_reduit1 = lm(Energy ~ . - Roof.area - orientation, data = data[,c(1:9)])
+anova(model_complet, model_reduit1)
+summary(model_reduit1)
+```
+
+```{r}
+selectf = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)],nbest=1,nvmax=10,method="forward")
+plot(selectf,scale="bic",main="Forward BIC")
+plot(selectf,scale="Cp",main="Forward Cp")
+plot(selectf,scale="adjr2",main="Forward adjusted R²")
+
+selectb = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)],nbest=1,nvmax=10,method="backward")
+plot(selectb,scale="bic",main="Backward BIC")
+plot(selectb,scale="Cp",main="Backward Cp")
+plot(selectb,scale="adjr2",main="Backward adjusted R²")
+```
+
+```{r}
+# model_reduit2
+# anova()
+```
+
