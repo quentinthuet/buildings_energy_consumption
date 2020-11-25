@@ -373,7 +373,7 @@ model_reduit_bic = lm(Energy ~ Relative.compactness + Surface.area + Wall.area +
     Glazing.area + Relative.compactness:Surface.area + Relative.compactness:Wall.area + 
     Relative.compactness:Overall.height + Relative.compactness:Glazing.area + 
     Wall.area:Glazing.area, data = data)
-anova(model_reduit, model_quanti_complet)
+anova(model_reduit_bic, model_quanti_complet)
 ```
 
 
