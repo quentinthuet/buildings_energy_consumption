@@ -126,7 +126,8 @@ plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.e
 # plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="orientation", label = "none")
 ```
 
-On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G. Les maisons dont la consommation énergétique la plus faible possède des coordonnées négatives pour la première composante. Ces maisons sont celles qui ont une compacité relative plus faible, plus basses et avec une surface au sol plus élevée, comme on peut le voir sur les graphiques suivants :
+On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G.
+Les maisons dont la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ces maisons sont celles qui ont une compacité relative plus faible (plus basses et avec une surface au sol plus élevée), comme on peut le voir sur les graphiques suivants :
 
 ```{r}
 gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Relative.compactness", label = "none")
@@ -136,6 +137,8 @@ gg3 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Ov
 # grid.arrange(grobs = list(gg1,gg2,gg3),ncol = 2, widths=c(10,10))
 grid.arrange(gg1,gg2,gg3,ncol = 2,widths=c(10,10))
 ```
+
+Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques.
 
 
 ## Quentin : clustering
@@ -362,24 +365,6 @@ ggplot(data) +
 
 ```{r}
 modselect_bic=stepAIC(model_quanti_complet,trace=TRUE,direction=c("backward"),k=log(nrow(data)))
-# selectf = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,quanti],nbest=1,nvmax=10,method="forward")
-# modselect_bic=stepAIC(model_quanti_complet,trace=TRUE,direction=c("backward"),k=log(nrow(data)))
-# plot(selectf,scale="bic",main="Forward BIC",)
-# plot(selectf,scale="Cp",main="Forward Cp")
-# plot(selectf,scale="adjr2",main="Forward adjusted R²")
-# model1f = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Glazing.area - Relative.compactness:Glazing.area
-#                                      - Surface.area:Glazing.area - Wall.area:Glazing.area, data = data)
-# model0f = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Glazing.area - Relative.compactness:Glazing.area
-#                                      - Relative.compactness:Wall.area - Surface.area:Glazing.area - Wall.area:Glazing.area, data = data)
-# 
-# selectb = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,quanti],nbest=1,nvmax=10,method="backward")
-# plot(selectb,scale="bic",main="Backward BIC", cex.axis = 0.5)
-# plot(selectb,scale="Cp",main="Backward Cp")
-# plot(selectb,scale="adjr2",main="Backward adjusted R²")
-# model1b = lm(Energy ~ (. - Roof.area)^2 - Overall.height - Surface.area:Wall.area - Surface.area:Glazing.area
-#                                      - Wall.area:Overall.height - Overall.height:Glazing.area, data = data)
-# model1b = lm(Energy ~ (. - Roof.area)^2 - Relative.compactness - Overall.height - Surface.area:Wall.area - Surface.area:Glazing.area
-#                                      - Wall.area:Overall.height - Overall.height:Glazing.area, data = data)
 ```
 
 ```{r}
@@ -539,3 +524,5 @@ mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
 mlg_rg <- glm(Energy.efficiency.bis~(.-Roof.area),data=data.mlg,family=binomial(link=logit))
 summary(mlg_rg)
 ```
+
+
