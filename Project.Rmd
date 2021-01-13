@@ -622,4 +622,43 @@ anova(mlg_rg_best_aic,mlg_inter_best_aic,test="Chisq")
 La pvaleur étant de 0.006016 on rejette H0
 Donc on conserve mlg_inter_best_aic.
 
-## Regression polytomique pour la variable Energy.efficiency?
+## Regression polytomique pour la variable Energy.efficiency
+###  Mise en forme du jeu de données utilisées
+Dans la mise en forme du jeu de données, la variable Energie et Roof.Area ont été supprimées. En raison du fait que,
+d'une part les variables Surface.area, Wall.area et la Roof.area sont liées, et d'aute part la variable de sortie 
+ici considérée est Energy.efficiency.
+```{r}
+data.mlg.p = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
+data.mlg.p<-data[,c(-4,-9)]
+```
+### Statistique descriptive 
+```{r}
+#Statistique Descriptive
+boxplot(Relative.compactness~ Energy.efficiency,data=data.mlg.p)
+boxplot(Surface.area~ Energy.efficiency,data=data.mlg.p)
+boxplot(Wall.area~ Energy.efficiency,data=data.mlg.p)
+boxplot(Overall.height~ Energy.efficiency,data=data.mlg.p)
+boxplot(Glazing.area~ Energy.efficiency,data=data.mlg.p)
+mosaicplot(table(data.mlg.p[,c("Energy.efficiency","orientation")]))
+``` 
+L'analyse des figures obtenues nous permet de noter que :
+  * Les classes d'energies A,B,C ont une faible relative compactness par rapport aux classes D,E,F,G
+  * Les classes d'energies A,B,C ont une grande Surface.area par rapport aux classes D,E,F,G
+  * Les classes d'energies B,D,E,F ont en moyenne la même surface de Wall.area, mais pas la même distribution
+    La classe A a une faible surface de Wall.area et la classe G en a une grande
+  * Les classes d'energies A,B,C ont une faible Overall.height par rapport aux classes D,E,F,G
+
+## Modèle linéaire généralisé polytomique additif
+L'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency
+donc nous allons considérer le modèle additif.
+Nous allons considérer les niveaux comme ordonnées pour notre analyse.
+```{r}
+# transformation en variable ordinale
+data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE, levels = c("A", "B", 
+    "C", "D","E","F","G"))
+```
+
+### Ajustement du modèle.
+```{r}
+modelord <- vglm(Energy.efficiency ~ ., data = data.mlg.p, family = acat())
+```
