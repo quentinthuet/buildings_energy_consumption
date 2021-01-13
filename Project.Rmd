@@ -12,51 +12,49 @@ library(leaps)
 library(MASS)
 library(glmnet)
 library(gridExtra)
+library(bestglm)
 ```
 
-# Data analysis
+# Analyse des données
 
-## Ababacar : Description
+## Statistiques descriptives
+
+Le jeu de données est composé de 768 batiments. Pour chaque batiment, nous possédons les 10 variables suivantes :
+
+C'est normal que la liste soit comme ça, c'est latex qui fait des listes correctes après.
+* Quantitatives :
+  + `Relative.compactness` : compacité relative à un cube de même volume ($RC = 6 \times V^{0.66} \times A^{-1}$ avec $V$ et $A$ respectivement le volume et l'aire totale du batiment (murs, toit, sol))
+  + `Surface.area` : surface totale (sol + murs + toit)
+  + `Wall.area` : surface de mur extérieurs
+  + `Roof.area` : surface de toit
+  + `Overall.height` : hauteur du batiment (soit 3.5 soit 7 m)
+  + `Glazing.area` : Surface vitrée (en pourcentage de la surface au sol)
+  + `Load` : Énergie consommée (quantité à prédire)
+* Catégorielles :
+  + `orientation` : orientation de la maison (Nord, Sud, Est, Ouest)
+  + `Glazing.area.distr` : Distribution des vitres (uniforme, ou plus d'un coté)
+  + `Energy.efficiency` : Indicateur de l'énergie consommées (de A (meilleur) à G (pire))
 
 ```{r}
 # Lecture jeu de données
 setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
 data = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
-data
 # Mise sous forme de facteur des données catégorielles
 data$Energy.efficiency = as.factor(data$Energy.efficiency)
 data$Glazing.area.distr = as.factor(data$Glazing.area.distr)
 data$orientation = as.factor(data$orientation)
 # Correction du jeu de données
 data$Glazing.area[which(data$Glazing.area.distr == 0)] = 0
-# Infos sur le jeu de données
-str(data)
-```
-Le jeu de données est composé de 768 batiments avec chacun 10 variables.
-
-Quantitatives :
-- Relative.compactness : compacité relative à un cube de même volume (FORMULE)
-- Surface.area : surface totale (sol + murs + toit)
-- Wall.area : surface de mur extérieurs
-- Roof.area : surface de toit
-- Overall.height : hauteur du batiment (soit 3.5 soit 7 m)
-- Glazing.area : Surface vitrée (en pourcentage de la surface au sol)
-- Load : Energie consommée (sortie du problème)
-Catégorielles :
-- orientation : orientation de la maison (Nord, Sud, Est, Ouest)
-- Glazing.area.distr : Distribution des vitres (Uniforme, ou plus d'un coté)
-- Energy.efficiency : Indicateur de l'énergie consommées (de A à G)
-
-```{r}
-quanti <- c(1:5, 7, 9)
-quali <- c(6, 8, 10) 
-pairs(data[, quanti], pch = '.', cex = 0.1, cex.labels = 0.55) 
-plot(2*data$Roof.area + data$Wall.area, data$Surface.area)
-```
-
-
-```{r}
+# Informations sur le jeu de données
 summary(data)
+# Séparation des variables quantitatives et qualitatives
+quanti = c(1:5, 7, 9)
+quali = c(6, 8, 10)
+```
+
+```{r}
+# pairs(data[, quanti], pch = '.', cex = 0.1, cex.labels = 0.55)
+plot(2*data$Roof.area + data$Wall.area, data$Surface.area)
 ```
 
 Même nombre de batiments faisant face à chaque orientation. Même nombre de batiments avec les différentes répartitions de fenêtres, sauf les batiments sans fenêtres.
@@ -74,31 +72,38 @@ On voit que la surface vitrée à une influence sur l'énergie consommée.
 boxplot(Energy ~ Overall.height, data = data)
 ```
 
-## Léo : ACP
+## Analyse en Composantes Principales (ACP)
 
-On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package \texttt{FactoMineR} qui contient toutes les fonctions nécessaires à la réalisation de notre ACP. On cherche d'abord combien d'axes principaux nous allons avoir besoin.
+On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package 
+`FactoMineR` qui contient toutes les fonctions nécessaires à la réalisation de notre ACP. On cherche d'abord combien d'axes principaux nous allons avoir besoin.
 
 ```{r}
 library("FactoMineR")
 par(mfrow=c(1,2))
 res.acp <- PCA(data,scale.unit=T,quali.sup=c(6,8,10),quanti.sup=9,ncp=8, graph=F)
-barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie", names.arg = seq(1,6), xlab = "Composantes principales")
+barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie",
+        names.arg = seq(1,6), xlab = "Composantes principales")
 barplot(res.acp$eig[,"cumulative percentage of variance"],
         main="Pourcentage d'inertie cumulé",
         names.arg = seq(1,6), xlab = "Composantes principales")
 abline(h = 95, col = "red")
-print(paste("Pourcentage d'inertie expliquée par les trois premiers axes principaux :",res.acp$eig[,"cumulative percentage of variance"][3]))
+print(paste("Pourcentage d'inertie expliquée par les trois premiers axes :",
+            res.acp$eig[,"cumulative percentage of variance"][3]))
 ```
 
 On voit sur le premier graphe que l'inertie portée par les trois premiers axes principaux est prépondérante par rapport aux autres. D'après le graphe de pourcentage d'inertie cumulée, ils expliquent presque 99\% de l'inertie. Les deux premiers axes ne portent eux que 82\% de l'inertie. Ne choisir que deux axes effacerait trop d'informations. Nous allons donc poursuivre notre analyse sur les trois premiers axes principaux.
 
 Les graphes des variables nous donnent des informations très intéressantes sur les variables corrélées.
 
-```{r, fig.dim=c(2,2)}
-gg1 = plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = FALSE, title = "Graphe des variables (axes 1 et 2)")
-gg2 = plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE, title = "Graphe des variables (axes 1 et 3)")
-gg3 = plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE, title = "Graphe des variables (axes 2 et 3)")
-grid.arrange(gg1,gg2,gg3,ncol = 2,widths=c(10,10))
+```{r, fig.dim=c(6,6)}
+gg1 = plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = FALSE,
+               title = "Graphe des variables (axes 1 et 2)")
+gg2 = plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE,
+               title = "Graphe des variables (axes 1 et 3)")
+gg3 = plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE,
+               title = "Graphe des variables (axes 2 et 3)")
+layout_matrix <- matrix(c(1, 1, 2, 2, 4, 3, 3, 4), nrow = 2, byrow = TRUE)
+grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
 Les variables `Relative.compactness`, `Overall.height`, `Surface.area` et `Roof.area` semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
@@ -112,27 +117,40 @@ Ainsi, l'énergie dépensée dépend d'abord de la forme du bâtiment, et ensuit
 Nous pouvons également observer les graphes des individus. Nous représentons les différentes classes énergétiques par couleur.
 
 
-```{r}
-gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Energy.efficiency", label = "none")
-gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="Energy.efficiency", label = "none")
-gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Energy.efficiency", label = "none")
-grid.arrange(gg1,gg2,gg3,ncol = 2,widths=c(10,10))
+```{r, fig.dim=c(7,7)}
+gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
+           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
+  theme(text = element_text(size=8))
+gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali",
+           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
+  theme(text = element_text(size=8))
+gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali",
+           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
+  theme(text = element_text(size=8))
+grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
 On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G.
+
 Les maisons dont la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ces maisons sont celles qui ont une compacité relative plus faible (plus basses et avec une surface au sol plus élevée), comme on peut le voir sur les graphiques suivants :
 
-```{r}
-gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Relative.compactness", label = "none")
-gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Surface.area", label = "none")
-gg3 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Overall.height", label = "none")
-grid.arrange(gg1,gg2,gg3,ncol = 2,widths=c(10,10))
+```{r, fig.dim=c(7,7)}
+gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
+           habillage="Relative.compactness", label = "none", new.plot = FALSE) +
+  theme(text = element_text(size=8))
+gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
+           habillage="Surface.area", label = "none", new.plot = FALSE) +
+  theme(text = element_text(size=8))
+gg3 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
+           habillage="Overall.height", label = "none") +
+  theme(text = element_text(size=8))
+grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
 Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques.
 
 
-## Quentin : clustering
+## Clustering de variables
 ### Analyse visuelle
 
 ```{r}
@@ -504,134 +522,134 @@ plot(selectb,scale="adjr2",main="Backward adjusted R²")
 # anova()
 ```
 
-# Modèle linéaire généralisée
+<!-- # Modèle linéaire généralisée -->
 
-### Mise en forme de la data Frame
-```{r}
-# Modéle linéaire généralisée
-# Définition de Energy.efficiencyBIs
-data.mlg = data.frame(data, Energy.efficiency.bis = rep(0, nrow(data)))
-data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1"
-data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0"
-data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
-data.mlg<-data.mlg[,c(-4,-9,-10)]
-```
+<!-- ### Mise en forme de la data Frame -->
+<!-- ```{r} -->
+<!-- # Modéle linéaire généralisée -->
+<!-- # Définition de Energy.efficiencyBIs -->
+<!-- data.mlg = data.frame(data, Energy.efficiency.bis = rep(0, nrow(data))) -->
+<!-- data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1" -->
+<!-- data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0" -->
+<!-- data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis) -->
+<!-- data.mlg<-data.mlg[,c(-4,-9,-10)] -->
+<!-- ``` -->
 
-### Statistique descriptive 
-```{r}
-#Statistique Descriptive
-boxplot(Relative.compactness~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Surface.area~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Wall.area~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Overall.height~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Glazing.area~ Energy.efficiency.bis,data=data.mlg)
-mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
-```
-L'analyse descriptive du modèle linéaire généralisé  par rapport à la variable 
-Energy.efficiency.bis nous permet de noter les points suivant :
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont une Relative compactness faible.
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont une Surface.area plus grande.
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont des surface de Wall.area faible.
-    * Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis
-    
-## Modèle linéaire généralisé additif
-Puisque, les variables Surface.area, Wall.area et la Roof.area sont liées, nous allons l'enlever du jeu de données.
-En outre, l'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency.bis
-donc nous allons considérer le modèle additif
-### Ajustement du modèle
-```{r}
-# Ajustement du modèle linéaire généralisé additif
-mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit))
-summary(mlg_rg)
-```
-### Calcul du pseudo R2
-```{r}
-#Calcul de pseudo R2 de mlg_rg
-pseudoR2 = 1 - ( mlg_rg$deviance/mlg_rg$null.deviance)
-print("Pseudo R2 ")
-print(pseudoR2)
-```
-Le Pseudo R2 trouvé est de 0.712, alors on peut modéliser ce problème par un MLG.
-### Recherche de sous modèle
-```{r}
-print("############################  AIC  #############################")
-mlg.BIC <- bestglm(data.mlg, family = binomial, IC = "BIC")
-mlg.BIC$BestModel
-print('')
-print("############################  BIC  #############################")
-mlg.AIC <- bestglm(data.mlg, family = binomial, IC = "AIC")
-mlg.AIC$BestModel
-```
-###Choix du sous modéle.
-#### Comparaison du modèle complet avec le modèle AIC
+<!-- ### Statistique descriptive  -->
+<!-- ```{r} -->
+<!-- #Statistique Descriptive -->
+<!-- boxplot(Relative.compactness~ Energy.efficiency.bis,data=data.mlg) -->
+<!-- boxplot(Surface.area~ Energy.efficiency.bis,data=data.mlg) -->
+<!-- boxplot(Wall.area~ Energy.efficiency.bis,data=data.mlg) -->
+<!-- boxplot(Overall.height~ Energy.efficiency.bis,data=data.mlg) -->
+<!-- boxplot(Glazing.area~ Energy.efficiency.bis,data=data.mlg) -->
+<!-- mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")])) -->
+<!-- ``` -->
+<!-- L'analyse descriptive du modèle linéaire généralisé  par rapport à la variable  -->
+<!-- Energy.efficiency.bis nous permet de noter les points suivant : -->
+<!--     * Les individus qui ont une meilleure Energy.efficiency.bis ont une Relative compactness faible. -->
+<!--     * Les individus qui ont une meilleure Energy.efficiency.bis ont une Surface.area plus grande. -->
+<!--     * Les individus qui ont une meilleure Energy.efficiency.bis ont des surface de Wall.area faible. -->
+<!--     * Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis -->
+
+<!-- ## Modèle linéaire généralisé additif -->
+<!-- Puisque, les variables Surface.area, Wall.area et la Roof.area sont liées, nous allons l'enlever du jeu de données. -->
+<!-- En outre, l'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency.bis -->
+<!-- donc nous allons considérer le modèle additif -->
+<!-- ### Ajustement du modèle -->
+<!-- ```{r} -->
+<!-- # Ajustement du modèle linéaire généralisé additif -->
+<!-- mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit)) -->
+<!-- summary(mlg_rg) -->
+<!-- ``` -->
+<!-- ### Calcul du pseudo R2 -->
+<!-- ```{r} -->
+<!-- #Calcul de pseudo R2 de mlg_rg -->
+<!-- pseudoR2 = 1 - ( mlg_rg$deviance/mlg_rg$null.deviance) -->
+<!-- print("Pseudo R2 ") -->
+<!-- print(pseudoR2) -->
+<!-- ``` -->
+<!-- Le Pseudo R2 trouvé est de 0.712, alors on peut modéliser ce problème par un MLG. -->
+<!-- ### Recherche de sous modèle -->
+<!-- ```{r} -->
+<!-- print("############################  AIC  #############################") -->
+<!-- mlg.BIC <- bestglm(data.mlg, family = binomial, IC = "BIC") -->
+<!-- mlg.BIC$BestModel -->
+<!-- print('') -->
+<!-- print("############################  BIC  #############################") -->
+<!-- mlg.AIC <- bestglm(data.mlg, family = binomial, IC = "AIC") -->
+<!-- mlg.AIC$BestModel -->
+<!-- ``` -->
+<!-- ###Choix du sous modéle. -->
+<!-- #### Comparaison du modèle complet avec le modèle AIC -->
 
 
-```{r}
-#
-mlg_rg_best_aic <- glm(Energy.efficiency.bis~Relative.compactness + Overall.height+Glazing.area,family=binomial(link=logit),data=data.mlg)
-anova(mlg_rg_best_aic,mlg_rg,test="Chisq")
-```
+<!-- ```{r} -->
+<!-- # -->
+<!-- mlg_rg_best_aic <- glm(Energy.efficiency.bis~Relative.compactness + Overall.height+Glazing.area,family=binomial(link=logit),data=data.mlg) -->
+<!-- anova(mlg_rg_best_aic,mlg_rg,test="Chisq") -->
+<!-- ``` -->
 
-La pvaleur obtenue étant de 0.003229  donc on rejette le modéle AIC au risque de 5%. 
+<!-- La pvaleur obtenue étant de 0.003229  donc on rejette le modéle AIC au risque de 5%.  -->
 
-#### Comparaison du modèle complet avec le modèle BIC
-```{r}
+<!-- #### Comparaison du modèle complet avec le modèle BIC -->
+<!-- ```{r} -->
 
-# On note que le sous modèle bic est un sous modèle du modèle AIC
-#### Comparaison du modèle AIC  avec le sous modèle BIC
-mlg_rg_best_bic <- glm(Energy.efficiency.bis~Relative.compactness + Glazing.area + 
-    Overall.height + Glazing.area.distr,family=binomial(link=logit),data=data.mlg)
-summary(mlg_rg_best_bic)
-anova(mlg_rg_best_bic,mlg_rg,test="Chisq")
-```
-La pvaleur obtenue étant de 0.5543 on retient le modèle BIC au risque 5%
+<!-- # On note que le sous modèle bic est un sous modèle du modèle AIC -->
+<!-- #### Comparaison du modèle AIC  avec le sous modèle BIC -->
+<!-- mlg_rg_best_bic <- glm(Energy.efficiency.bis~Relative.compactness + Glazing.area +  -->
+<!--     Overall.height + Glazing.area.distr,family=binomial(link=logit),data=data.mlg) -->
+<!-- summary(mlg_rg_best_bic) -->
+<!-- anova(mlg_rg_best_bic,mlg_rg,test="Chisq") -->
+<!-- ``` -->
+<!-- La pvaleur obtenue étant de 0.5543 on retient le modèle BIC au risque 5% -->
 
-## Modèle avec intéraction
-Regardons si le modèle avec intéraction définit mieux le problème de regression.
-```{r}
-#Ajustement du modèle complet avec intéraction 
-mlg_rg_inter <- glm(Energy.efficiency.bis~.^2,data=data.mlg,family=binomial(link="logit"))
-summary(mlg_rg_inter)
-```
+<!-- ## Modèle avec intéraction -->
+<!-- Regardons si le modèle avec intéraction définit mieux le problème de regression. -->
+<!-- ```{r} -->
+<!-- #Ajustement du modèle complet avec intéraction  -->
+<!-- mlg_rg_inter <- glm(Energy.efficiency.bis~.^2,data=data.mlg,family=binomial(link="logit")) -->
+<!-- summary(mlg_rg_inter) -->
+<!-- ``` -->
 
-### Calcul du pseudo R2
-```{r}
-#Calcul de pseudo R2
-pseudoR2 = 1 - ( mlg_rg_inter$deviance/mlg_rg_inter$null.deviance)
-print("Pseudo R2 ")
-print(pseudoR2)
-```
-Le pseudo R2 obtenu est de 0.7796646 (contre  0.712583 pour le modèle additif).
+<!-- ### Calcul du pseudo R2 -->
+<!-- ```{r} -->
+<!-- #Calcul de pseudo R2 -->
+<!-- pseudoR2 = 1 - ( mlg_rg_inter$deviance/mlg_rg_inter$null.deviance) -->
+<!-- print("Pseudo R2 ") -->
+<!-- print(pseudoR2) -->
+<!-- ``` -->
+<!-- Le pseudo R2 obtenu est de 0.7796646 (contre  0.712583 pour le modèle additif). -->
 
-### Recherche de sous modèle
-```{r}
-modelbestinter = step(mlg_rg_inter)
-summary(modelbestinter)
-```
-### Comparaison du modèle complet avec le sous modèle trouvé par la méthode AIC
-```{r}
+<!-- ### Recherche de sous modèle -->
+<!-- ```{r} -->
+<!-- modelbestinter = step(mlg_rg_inter) -->
+<!-- summary(modelbestinter) -->
+<!-- ``` -->
+<!-- ### Comparaison du modèle complet avec le sous modèle trouvé par la méthode AIC -->
+<!-- ```{r} -->
 
-mlg_inter_best_aic <- glm(Energy.efficiency.bis ~ Relative.compactness + Surface.area + 
-    Wall.area + Overall.height + orientation + Glazing.area + 
-    Glazing.area.distr + Relative.compactness:Glazing.area + 
-    Surface.area:Wall.area + Surface.area:orientation + Surface.area:Glazing.area.distr + 
-    Wall.area:orientation + Wall.area:Glazing.area + Overall.height:orientation,family=binomial(link=logit),data=data.mlg)
-summary(mlg_inter_best_aic)
-anova(mlg_inter_best_aic,mlg_rg_inter,test="Chisq")
-```
+<!-- mlg_inter_best_aic <- glm(Energy.efficiency.bis ~ Relative.compactness + Surface.area +  -->
+<!--     Wall.area + Overall.height + orientation + Glazing.area +  -->
+<!--     Glazing.area.distr + Relative.compactness:Glazing.area +  -->
+<!--     Surface.area:Wall.area + Surface.area:orientation + Surface.area:Glazing.area.distr +  -->
+<!--     Wall.area:orientation + Wall.area:Glazing.area + Overall.height:orientation,family=binomial(link=logit),data=data.mlg) -->
+<!-- summary(mlg_inter_best_aic) -->
+<!-- anova(mlg_inter_best_aic,mlg_rg_inter,test="Chisq") -->
+<!-- ``` -->
 
-La pvaleur étant de 0.9577 on ne rejette donc pas H0
-ON conserve le sous  modèle AIC
-## Choix du meilleur sous modèle
-Comparaison du modèle AIC sans intéraction avec le modèle AIC avec intéraction 
-Dans ce cas précis les modèle sans intéraction est un sous modèle de celui avec intéraction donc
-on peut réaliser un test de sous modèle
-```{r}
- 
-anova(mlg_rg_best_aic,mlg_inter_best_aic,test="Chisq")
-```
+<!-- La pvaleur étant de 0.9577 on ne rejette donc pas H0 -->
+<!-- ON conserve le sous  modèle AIC -->
+<!-- ## Choix du meilleur sous modèle -->
+<!-- Comparaison du modèle AIC sans intéraction avec le modèle AIC avec intéraction  -->
+<!-- Dans ce cas précis les modèle sans intéraction est un sous modèle de celui avec intéraction donc -->
+<!-- on peut réaliser un test de sous modèle -->
+<!-- ```{r} -->
 
-La pvaleur étant de 0.006016 on rejette H0
-Donc on conserve mlg_inter_best_aic.
+<!-- anova(mlg_rg_best_aic,mlg_inter_best_aic,test="Chisq") -->
+<!-- ``` -->
 
-## Regression polytomique pour la variable Energy.efficiency?
+<!-- La pvaleur étant de 0.006016 on rejette H0 -->
+<!-- Donc on conserve mlg_inter_best_aic. -->
+
+<!-- ## Regression polytomique pour la variable Energy.efficiency? -->
