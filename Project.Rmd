@@ -338,54 +338,70 @@ plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class12"
 Ici, on peut avoir la même observation que pour le découpage en 4 classes : le découpage est moins net que celui en 2 classes et se fait selon les axes 1 et 2.
 
 
-# Linear models
+# Modèles linéaires
 
-## Model depending on quantitatives variables
+## Modèle fonction des variables quantitatives
 
-### Selection de variables par critère BIC
+Nous étudierons dans un premier temps des modèles linéaires expliquant la variable quantitative `Energy` en fonction des variables *quantitatives* uniquement. Nous écarterons cependant la variable `Roof.area`, car nous avons vu qu'elle était combinaison linéaire des variables `Wall.area` et `Surface.area`. La conserver rendrait notre modèle singulier.
+
+### Modèle avec interactions
+
+Nous essayons un premier modèle contenant les variables explicatives et leurs interactions.
 
 ```{r}
 model_quanti_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,quanti])
-summary(model_quanti_complet)
+r.sq = summary(model_quanti_complet)$r.squared ; paste("R² =", r.sq)
 data$fitted_quanti_complet = model_quanti_complet$fitted.values
-ggplot(data) +
- aes(x = fitted_quanti_complet, y = Energy) +
- geom_point(size = 1L) +
- theme_minimal() + geom_smooth(method = "lm")
+ggplot(data) + 
+  aes(x = fitted_quanti_complet, y = Energy) +
+  geom_point(size = 1L) + geom_smooth(method = "lm", formula = "y~x") +
+  labs(title = "Regression linéaire de `Energy` en fonction des variables quantitatives",
+       x = "Valeurs ajustées") +
+  theme_minimal() 
 ```
+
+Le modèle obtenu semble déjà bien passer au sein des données : on trouve un $R^2$ de 0.8952.
+
+Cependant, ce modèle conserve beaucoup de variables, on peut donc se demander si elles sont toutes pertinentes. Nous allons donc essayer ne n'en conserver que certaines.
+
+### Selection de variables par critère BIC
+
+Nous allons réaliser dans un premier temps une sélection de variables par critère BIC.
 
 ```{r}
-modselect_bic=stepAIC(model_quanti_complet,trace=TRUE,direction=c("backward"),k=log(nrow(data)))
+modselect_bic_back = stepAIC(model_quanti_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)),)
+paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + "))
 ```
+
+Le modèle selectionné conserve nos 5 des variables quantitatives, mais supprime certaines de de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
 
 ```{r}
-model_reduit_bic = lm(Energy ~ Relative.compactness + Surface.area + Wall.area + Overall.height + 
-    Glazing.area + Relative.compactness:Surface.area + Relative.compactness:Wall.area + 
-    Relative.compactness:Overall.height + Relative.compactness:Glazing.area + 
-    Wall.area:Glazing.area, data = data)
-anova(model_reduit_bic, model_quanti_complet)
+anova(modselect_bic_back, model_quanti_complet)
+r.sq = summary(modselect_bic_back)$r.squared ; paste("R² =", r.sq)
 ```
 
-
-```{r}
-anova(model_quanti_complet, lm(Energy ~ Surface.area + Wall.area + Overall.height + Relative.compactness:Surface.area
-                        + Relative.compactness:Overall.height + Surface.area:Overall.height, data = data))
-```
+On obtient une p-valeur de 0.2864. On ne rejette donc pas notre modèle selectionné au seuil de 5 \%.
+Ainsi, notre modèle possède un $R^2$ de 0.8943, ce qui est à peine plus faible que ce que nous avions avec toutes nos variables.
 
 ### Selection de variable par regression regularisée
+
+On peut également tenter de sélectionner nos variables par régression régularisée.
+
+***Problème sur régression généralisée : tau est nul, voir avec Cathy***
 
 #### Ridge
 
 ```{r}
 # centrage et réduction des données
 eng=scale(data["Energy"],center=T,scale=T)
-expli=scale(data[,c(1,2,3,5,7)],center=T,scale=T)
+f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,5,7)])[[2]], collapse=" + "), ")^2"))
+expli=scale(model.matrix(f,data)[,-1],center=T,scale=T)
 
 # création du tableau de tau
-tau_seq <- seq(0, 1, by = 0.001)
+tau_seq <- seq(0, 0.002, by = 0.000001)
 
 # regression ridge
-fitridge <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+fitridge <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = T)
 
 # récupération du tau minimum par validation croisée
 ridge_cv = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
@@ -397,11 +413,10 @@ dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)), theta=as.vector(t(fit
 ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = tau_min_ridge, linetype = "dotted", color = "red") +
-  xlim(c(0,tau_min_ridge+0.05))
-  theme(legend.position="bottom")
+  theme(legend.position="right")
 ```
 
-```{r}
+```{r, echo=FALSE}
 # illustration de la meilleure valeur de tau
 df2=data.frame(tau=ridge_cv$lambda,MSE=ridge_cv$cvm,cvup=ridge_cv$cvup,cvlo=ridge_cv$cvlo)
 ggplot(df2)+
@@ -409,7 +424,6 @@ ggplot(df2)+
   geom_vline(xintercept = tau_min_ridge,col="red",linetype="dotted")+
   geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
-  xlim(c(0,tau_min_ridge+0.05))+
   ylim(c(0.115,0.155))
 ```
 
@@ -430,11 +444,10 @@ dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)), theta=as.vector(t(fit
 ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = tau_min_lasso, linetype = "dotted", color = "red") +
-  xlim(c(0,tau_min_lasso+0.01))
-  theme(legend.position="bottom")
+  theme(legend.position="right")
 ```
 
-```{r}
+```{r, echo=FALSE}
 # illustration de la meilleure valeur de tau
 df3=data.frame(tau=lasso_cv$lambda,MSE=lasso_cv$cvm,cvup=lasso_cv$cvup,cvlo=lasso_cv$cvlo)
 ggplot(df3)+
@@ -442,7 +455,6 @@ ggplot(df3)+
   geom_vline(xintercept = tau_min_lasso,col="red",linetype="dotted")+
   geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
-  xlim(c(0,tau_min_lasso+0.05))+
   ylim(c(0.115,0.155))
 ```
 
@@ -512,7 +524,7 @@ mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
 ```
 ```{r}
 # Ajustement du modèle linéaire généralisé additif
-mlg_rg <- glm(Energy.efficiency.bis~(.-Roof.area),data=data.mlg,family=binomial(link=logit))
+mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit))
 summary(mlg_rg)
 ```
 
