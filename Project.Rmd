@@ -692,3 +692,97 @@ data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE
 ```{r}
 modelord <- vglm(Energy.efficiency ~ ., data = data.mlg.p, family = acat())
 ```
+
+# Non-linear models
+
+## Classification
+
+```{r}
+data.nlm.class = data.mlg[c(1,2,3,4,5,6,7,13)]
+
+# On sépare les données en un ensemble d'apprentissage et un ensemble de test
+nb_train <- floor(0.75 * nrow(data.nlm.class))
+train_ind <- sample(seq_len(nrow(data.nlm.class)), size = nb_train)
+
+train <- data.nlm.class[train_ind, ]
+test <- data.nlm.class[-train_ind, ]
+```
+
+```{r}
+hatY = (mlg_rg$fitted.values > 0.5)
+table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
+```
+
+```{r}
+library(rpart) # chargement de la librairie
+library(rpart.plot)
+tree.dis=rpart(Energy.efficiency.bis~.,data=train, parms = list(split = "information"),cp=0.001)
+rpart.plot(tree.dis)
+```
+
+```{r}
+pred.tree <- predict(tree.dis,newdata=test,type="class")
+table(pred.tree, test[, "Energy.efficiency.bis"])
+```
+
+
+```{r}
+xmat <- xpred.rpart(tree.dis)
+
+# Comparaison des valeurs prédite et observée
+xerr <- (train$Energy.efficiency.bis != 0) != (xmat > 1.5) 
+# Calcul  des estimations des taux d'erreur
+CVerr <- apply(xerr, 2, sum)/nrow(xerr)
+cpMin <- as.numeric(attributes(which.min(CVerr))$names)
+tree.dis.opti <- rpart(Energy.efficiency.bis~., data = train, parms = list(split = "information"), cp = cpMin)
+rpart.plot(tree.dis.opti)
+```
+
+```{r}
+pred.tree.opti <- predict(tree.dis,newdata=test,type="class")
+table(pred.tree.opti, test[, "Energy.efficiency.bis"])
+```
+
+```{r}
+library(randomForest)
+rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train, 
+                       xtest = test[, -8], ytest = test[, "Energy.efficiency.bis"],
+                       ntree = 500, do.trace = 50, importance = TRUE)
+```
+
+```{r}
+pred.rf <- rf.dis$test$predicted
+table(pred.rf, test[,"Energy.efficiency.bis"])
+```
+
+```{r}
+library(caret)
+cvControl <- trainControl(method = "cv", number = 10)
+rfFit <- train(train[, -8], train[, 8], method = "rf", tuneLength = 8,
+               trControl = cvControl, trace = FALSE)
+
+rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train, 
+                       xtest = test[, -8], ytest = test[, "Energy.efficiency.bis"],
+                       ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
+pred.rf.opti <- rf.dis.opti$test$predicted
+table(pred.rf.opti, test[,"Energy.efficiency.bis"])
+```
+
+## Régression
+```{r}
+data.nlm.reg = data[c(1,2,3,5,6,7,8,9)]
+
+# On sépare les données en un ensemble d'apprentissage et un ensemble de test
+nb_train <- floor(0.75 * nrow(data.nlm.reg))
+train_ind <- sample(seq_len(nrow(data.nlm.reg)), size = nb_train)
+
+train <- data.nlm.reg[train_ind, ]
+test <- data.nlm.reg[-train_ind, ]
+```
+
+```{r}
+library(rpart) # chargement de la librairie
+library(rpart.plot)
+tree.dis.reg=rpart(Energy ~.,data=train, cp=0.001)
+rpart.plot(tree.dis.reg)
+```
