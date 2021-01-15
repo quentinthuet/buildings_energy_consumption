@@ -17,83 +17,85 @@ library(MASS)
 library(glmnet)
 library(gridExtra)
 library(bestglm)
+library(plotly)
 ```
 
 # Analyse des données
 
 ## Statistiques descriptives
 
-Le jeu de données est composé de 768 batiments. Pour chaque batiment, nous possédons les 10 variables suivantes :
+Le jeu de données est composé de 768 bâtiments. Pour chaque bâtiment, nous possédons les 10 variables suivantes :
 
-C'est normal que la liste soit comme ça, c'est latex qui fait des listes correctes après.
 * Quantitatives :
   + `Relative.compactness` : compacité relative à un cube de même volume ($RC = 6 \times V^{0.66} \times A^{-1}$ avec $V$ et $A$ respectivement le volume et l'aire totale du batiment (murs, toit, sol))
   + `Surface.area` : surface totale (sol + murs + toit)
   + `Wall.area` : surface de mur extérieurs
   + `Roof.area` : surface de toit
-  + `Overall.height` : hauteur du batiment (soit 3.5 soit 7 m)
   + `Glazing.area` : Surface vitrée (en pourcentage de la surface au sol)
-  + `Load` : Énergie consommée (quantité à prédire)
+  + `Energy` : Énergie consommée
 * Catégorielles :
+  + `Overall.height` : hauteur du batiment (soit 3.5 soit 7 m)
   + `orientation` : orientation de la maison (Nord, Sud, Est, Ouest)
   + `Glazing.area.distr` : Distribution des vitres (uniforme, ou plus d'un coté)
-  + `Energy.efficiency` : Indicateur de l'énergie consommées (de A (meilleur) à G (pire))
+  + `Energy.efficiency` : Indicateur de l'énergie consommée (de A (meilleur) à G (pire))
 
-```{r}
-# Lecture jeu de données
+On cherchera dans les prochaines parties à prédire les variables `Energy` et `Energy.efficiency` en fonction des autres. Nous allons dans un premier temps réaliser quelques statistiques exploratoires sur toutes nos variables.
+
+```{r, echo=FALSE}
 setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
+```
+```{r}
+# Lecture jeu de données, mise sous forme de facteur et corrections
 data = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
-# Mise sous forme de facteur des données catégorielles
+data$Glazing.area.distr = as.factor(factor(data$Glazing.area.distr))
 data$Energy.efficiency = as.factor(data$Energy.efficiency)
-data$Glazing.area.distr = as.factor(data$Glazing.area.distr)
 data$orientation = as.factor(data$orientation)
-# Correction du jeu de données
+data$Overall.height = factor(data$Overall.height, ordered = TRUE)
 data$Glazing.area[which(data$Glazing.area.distr == 0)] = 0
 # Informations sur le jeu de données
 summary(data)
 # Séparation des variables quantitatives et qualitatives
-quanti = c(1:5, 7, 9)
-quali = c(6, 8, 10)
+quanti = c(1, 2, 3, 4, 7, 9)
+quali = c(5, 6, 8, 10)
 ```
-La réalisation de la commande summary nous permet  de noter qu'il y'a 
-le même nombre de batiments pour chaque oriention et aussi  le même 
-nombre de répartition de fenêtre (sauf ceux qui n'en ont pas). 
-```{r}
-# pairs(data[, quanti], pch = '.', cex = 0.1, cex.labels = 0.55)
-plot(2*data$Roof.area + data$Wall.area, data$Surface.area)
-```
-L'analyse de la courbe nous montre que les variables Roof.area, Wall.area et Surface.area sont liées par la relation  :2*Roof.area+Wall.area=Surface.area.
-
-
-Même nombre de batiments faisant face à chaque orientation. Même nombre de batiments avec les différentes répartitions de fenêtres, sauf les batiments sans fenêtres.
+La commande summary nous permet  de noter qu'il y a
+le même nombre de bâtiments pour chaque orientation, pour chaque hauteur.
+La distribution des fenêtres est aussi répartie équitablement entre les bâtiments
+(sauf pour ceux sans fenêtres (modalité 0), qui sont moins nombreux).
 
 ```{r}
-ggplot(data) +
- aes(x = Glazing.area, y = Energy, colour = as.factor(Overall.height)) +
- geom_point(size = 1L) +
- theme_minimal() + geom_smooth(method = "lm")
+plot(2*data$Roof.area + data$Wall.area, data$Surface.area, pch='.')
+```
+La courbe précédente nous montre que les variables `Roof.area`, `Wall.area` et `Surface.area` sont liées par la relation :
+$\texttt{Surface.area} = 2 \times \texttt{Roof.area} + \texttt{Wall.area}$.
+
+```{r, fig.dim=c(5,10)}
+gg1 = ggplot(data) +
+  aes(x = Glazing.area, y = Energy, colour = as.factor(Overall.height)) +
+  geom_smooth(method = "lm") +
+  geom_point(size = 1L) +
+  theme_minimal()
+gg2 = ggplot(data) + geom_boxplot(data=data, aes(x=Overall.height, y=Energy)) +
+  theme_minimal()
+grid.arrange(gg1,gg2,ncol=2)
 ```
 
-On voit que la surface vitrée à une influence sur l'énergie consommée.
+On voit que la surface vitrée à une influence claire sur l'énergie consommée. La hauteur du bâtiment joue aussi un rôle important.
 
-```{r}
-boxplot(Energy ~ Overall.height, data = data)
-```
-On voit que la variable Overall.height a une influence sur l'énergie consommée.
 ## Analyse en Composantes Principales (ACP)
 
-On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package 
+On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package
 `FactoMineR` qui contient toutes les fonctions nécessaires à la réalisation de notre ACP. On cherche d'abord combien d'axes principaux nous allons avoir besoin.
 
 ```{r}
 library("FactoMineR")
 par(mfrow=c(1,2))
-res.acp <- PCA(data,scale.unit=T,quali.sup=c(6,8,10),quanti.sup=9,ncp=8, graph=F)
+res.acp <- PCA(data,scale.unit=T,quali.sup=quali,quanti.sup=9,ncp=8, graph=F)
 barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie",
-        names.arg = seq(1,6), xlab = "Composantes principales")
+        names.arg = seq(1,5), xlab = "Composantes principales")
 barplot(res.acp$eig[,"cumulative percentage of variance"],
         main="Pourcentage d'inertie cumulé",
-        names.arg = seq(1,6), xlab = "Composantes principales")
+        names.arg = seq(1,5), xlab = "Composantes principales")
 abline(h = 95, col = "red")
 print(paste("Pourcentage d'inertie expliquée par les trois premiers axes :",
             res.acp$eig[,"cumulative percentage of variance"][3]))
@@ -114,7 +116,7 @@ layout_matrix <- matrix(c(1, 1, 2, 2, 4, 3, 3, 4), nrow = 2, byrow = TRUE)
 grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
-Les variables `Relative.compactness`, `Overall.height`, `Surface.area` et `Roof.area` semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
+Les variables `Relative.compactness`, `Surface.area` et `Roof.area` semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
 
 Le second axe porte principalement la variable `Wall.area`, et le troisième la variable `Glazing.area`.
 
@@ -413,33 +415,37 @@ Ainsi, notre modèle possède un $R^2$ de 0.8943, ce qui est à peine plus faibl
 
 On peut également tenter de sélectionner nos variables par régression régularisée.
 
-***Problème sur régression généralisée : tau est nul, voir avec Cathy***
-
 #### Ridge
 
 ```{r}
 # centrage et réduction des données
-eng=scale(data["Energy"],center=T,scale=T)
-f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,5,7)])[[2]], collapse=" + "), ")^2"))
+energy=scale(data["Energy"],center=T,scale=T)
+f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,7)])[[2]], collapse=" + "), ")^2"))
 expli=scale(model.matrix(f,data)[,-1],center=T,scale=T)
+print(energy)
+print(expli)
 
 # création du tableau de tau
-tau_seq <- seq(0, 0.002, by = 0.000001)
+# tau_seq <- seq(0, 0.005, by = 0.0000001)
+tau_seq <- seq(0, 0.1, by = 0.0001)
 
 # regression ridge
-fitridge <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = T)
+fitridge <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 0, lambda = tau_seq, intercept = F)
 
 # récupération du tau minimum par validation croisée
-ridge_cv = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 0, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+ridge_cv = cv.glmnet(x = expli, y = energy, family = "gaussian", alpha = 0, lambda = tau_seq, intercept = F)
 tau_min_ridge = ridge_cv$lambda.min
 print(tau_min_ridge)
 
 # affichage des estimations de tau
-dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)), theta=as.vector(t(fitridge$beta)),variable=rep(colnames(expli),each=length(fitridge$lambda)))
-ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
+dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)),
+                   theta=as.vector(t(fitridge$beta)),
+                   variable=rep(colnames(expli),each=length(fitridge$lambda)))
+gg = ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = tau_min_ridge, linetype = "dotted", color = "red") +
   theme(legend.position="right")
+ggplotly(gg)
 ```
 
 ```{r, echo=FALSE}
@@ -449,8 +455,7 @@ ggplot(df2)+
   geom_line(aes(x=tau,y=MSE))+
   geom_vline(xintercept = tau_min_ridge,col="red",linetype="dotted")+
   geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
-  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
-  ylim(c(0.115,0.155))
+  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
 
@@ -458,19 +463,22 @@ ggplot(df2)+
 
 ```{r}
 # regression lasso
-fitlasso <- glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+fitlasso <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
 
 # récupération du tau minimum par validation croisée
-lasso_cv = cv.glmnet(x = expli, y = eng, family = "gaussian", alpha = 1, lambda = tau_seq, type.measure=c("mse"), intercept = F)
+lasso_cv = cv.glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
 tau_min_lasso = lasso_cv$lambda.min
 print(tau_min_lasso)
 
 # affichage des estimations de tau
-dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)), theta=as.vector(t(fitlasso$beta)),variable=rep(colnames(expli),each=length(fitlasso$lambda)))
-ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
+dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)),
+                   theta=as.vector(t(fitlasso$beta)),
+                   variable=rep(colnames(expli),each=length(fitlasso$lambda)))
+gglasso = ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = tau_min_lasso, linetype = "dotted", color = "red") +
   theme(legend.position="right")
+ggplotly(gglasso)
 ```
 
 ```{r, echo=FALSE}
@@ -480,8 +488,7 @@ ggplot(df3)+
   geom_line(aes(x=tau,y=MSE))+
   geom_vline(xintercept = tau_min_lasso,col="red",linetype="dotted")+
   geom_line(aes(x=tau,y=cvup),col="blue",linetype="dotted")+
-  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")+
-  ylim(c(0.115,0.155))
+  geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
 
