@@ -57,6 +57,7 @@ summary(data)
 # Séparation des variables quantitatives et qualitatives
 quanti = c(1, 2, 3, 4, 7, 9)
 quali = c(5, 6, 8, 10)
+allvariables = 1:10
 ```
 La commande summary nous permet  de noter qu'il y a
 le même nombre de bâtiments pour chaque orientation, pour chaque hauteur.
@@ -337,7 +338,7 @@ On utilise ici les classes obtenues par clustering hiérarchiques car celles-ci 
 data$class2 = as.factor(class2)
 data$class4 = as.factor(class4)
 data$class12 = as.factor(class12)
-res.acp <- PCA(data,scale.unit=T,quali.sup=c(6,8,10,11,12,13),quanti.sup=9,ncp=8, graph=F)
+res.acp <- PCA(data,scale.unit=T,quali.sup=c(quali,11,12,13),quanti.sup=9,ncp=8, graph=F)
 ```
 
 
@@ -382,10 +383,11 @@ r.sq = summary(model_quanti_complet)$r.squared ; paste("R² =", r.sq)
 data$fitted_quanti_complet = model_quanti_complet$fitted.values
 ggplot(data) + 
   aes(x = fitted_quanti_complet, y = Energy) +
-  geom_point(size = 1L) + geom_smooth(method = "lm", formula = "y~x") +
+  geom_point(size = 1L) + 
+  geom_abline(slope = 1) +
   labs(title = "Regression linéaire de `Energy` en fonction des variables quantitatives",
        x = "Valeurs ajustées") +
-  theme_minimal() 
+  theme_minimal()
 ```
 
 Le modèle obtenu semble déjà bien passer au sein des données : on trouve un $R^2$ de 0.8952.
@@ -414,22 +416,23 @@ Ainsi, notre modèle possède un $R^2$ de 0.8943, ce qui est à peine plus faibl
 ### Selection de variable par regression regularisée
 
 On peut également tenter de sélectionner nos variables par régression régularisée.
-
-#### Ridge
+Nous nous contenterons d'étudier le modèle sans interactions car la fonction que nous utiliserons ne traite pas de priorisation entre les effets principaux et les interactions.
 
 ```{r}
 # centrage et réduction des données
-energy=scale(data["Energy"],center=T,scale=T)
-f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,7)])[[2]], collapse=" + "), ")^2"))
-expli=scale(model.matrix(f,data)[,-1],center=T,scale=T)
-print(energy)
-print(expli)
+energy = scale(data["Energy"],center=T,scale=T)
+# f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,7)])[[2]], collapse=" + "), ")^2"))
+# expli = scale(model.matrix(f,data)[,-1],center=T,scale=T)
+expli = scale(data[quanti[-6]],center=T,scale=T)
 
 # création du tableau de tau
-# tau_seq <- seq(0, 0.005, by = 0.0000001)
 tau_seq <- seq(0, 0.1, by = 0.0001)
+```
 
-# regression ridge
+
+#### Ridge
+
+```{r, eval=FALSE}
 fitridge <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 0, lambda = tau_seq, intercept = F)
 
 # récupération du tau minimum par validation croisée
@@ -441,14 +444,13 @@ print(tau_min_ridge)
 dfridge=data.frame(tau = rep(fitridge$lambda,ncol(expli)),
                    theta=as.vector(t(fitridge$beta)),
                    variable=rep(colnames(expli),each=length(fitridge$lambda)))
-gg = ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
+ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = tau_min_ridge, linetype = "dotted", color = "red") +
   theme(legend.position="right")
-ggplotly(gg)
 ```
 
-```{r, echo=FALSE}
+```{r, eval=FALSE}
 # illustration de la meilleure valeur de tau
 df2=data.frame(tau=ridge_cv$lambda,MSE=ridge_cv$cvm,cvup=ridge_cv$cvup,cvlo=ridge_cv$cvlo)
 ggplot(df2)+
@@ -458,30 +460,26 @@ ggplot(df2)+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
+La régression Ridge ne nous donne pas vraiment de résultats intéressant, il est difficile de voir clairement quelles variables écarter. Nous allons donc essayer une régression lasso.
 
 #### Lasso
 
 ```{r}
-# regression lasso
 fitlasso <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
+dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)),
+                   theta=as.vector(t(fitlasso$beta)),
+                   variable=rep(colnames(expli),each=length(fitlasso$lambda)))
+ggplotly(ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
+  geom_line() +
+  geom_vline(xintercept = 0.02, linetype = "dotted", color = "red") +
+  theme(legend.position="right"))
+```
 
+```{r, eval=FALSE}
 # récupération du tau minimum par validation croisée
 lasso_cv = cv.glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
 tau_min_lasso = lasso_cv$lambda.min
 print(tau_min_lasso)
-
-# affichage des estimations de tau
-dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)),
-                   theta=as.vector(t(fitlasso$beta)),
-                   variable=rep(colnames(expli),each=length(fitlasso$lambda)))
-gglasso = ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
-  geom_line() +
-  geom_vline(xintercept = tau_min_lasso, linetype = "dotted", color = "red") +
-  theme(legend.position="right")
-ggplotly(gglasso)
-```
-
-```{r, echo=FALSE}
 # illustration de la meilleure valeur de tau
 df3=data.frame(tau=lasso_cv$lambda,MSE=lasso_cv$cvm,cvup=lasso_cv$cvup,cvlo=lasso_cv$cvlo)
 ggplot(df3)+
@@ -491,32 +489,26 @@ ggplot(df3)+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
+Certains variables s'écrasent bien à 0. En choisissant un seuil de 0.02, la régularisation écarterait les variables `Surface.area` et `Relative.compactness`. Cependant ce seuil est arbitraire. En essayant de le choisir par validation croisée pour minimiser le critère MSE, nous trouvons 0. Cela signifierait qu'il faudrait conserver toutes les variables. Cela serait cohérent avec les résultats de la sélection par critère BIC, qui conservait toutes les variables (plus certaines interactions). Le fait de ne pas pouvoir tester les interactions nous limite sur les conclusions que nous pouvons tirer des régression régularisées.
+
+Nous n'avons jusqu'à présent considéré que les variables quantitatives. Nous allons maintenant essayer de voir si les variables qualitatives de notre jeu de données ne pourraient pas nous apporter des informations supplémentaires.
 
 ## Model depending on all variables
 
+On construit un modèle complet avec interactions, et on teste un sous-modèle sans interactions pour voir si on pourrait s'en passer.
+
 ```{r}
 model_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)])
-summary(model_complet)
 data$fitted_complet = model_complet$fitted.values
-ggplot(data) +
- aes(x = fitted_complet, y = Energy) +
- geom_point(size = 1L) +
- theme_minimal() + geom_smooth(method = "lm")
-
-ggplot(data) +
- aes(x = fitted_complet, y = Energy, col = Glazing.area.distr) +
- geom_point(size = 1L) +
- theme_minimal() + geom_smooth(method = "lm")
-
-ggplot(data) +
- aes(x = fitted_complet, y = Energy, col = orientation) +
- geom_point(size = 1L) +
- theme_minimal() + geom_smooth(method = "lm")
+model_no_interactions = lm(Energy ~ . - Roof.area, data = data[,c(1:9)])
+anova(model_complet, model_no_interactions)
 ```
 
+La p-valeur est très faible : on doit conserver des interactions. Nous allons essayer de voir si nous ne pourrions pas nous en passer de certaines grâce à un algorithme de sélection de variables.
+
 ```{r}
-model_reduit1 = lm(Energy ~ . - Roof.area - orientation, data = data[,c(1:9)])
-anova(model_complet, model_reduit1)
+model_no_interactions = lm(Energy ~ . - Roof.area, data = data[,c(1:9)])
+anova(model_complet, model_no_interactions)
 summary(model_reduit1)
 ```
 
