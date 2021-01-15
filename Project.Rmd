@@ -5,6 +5,10 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold")
+library(ggfortify)
+library(VGAM)
+library(ROCR)
+library(tidyverse)
 library(ggplot2)
 library(esquisse)
 library(FactoMineR)
@@ -51,11 +55,15 @@ summary(data)
 quanti = c(1:5, 7, 9)
 quali = c(6, 8, 10)
 ```
-
+La réalisation de la commande summary nous permet  de noter qu'il y'a 
+le même nombre de batiments pour chaque oriention et aussi  le même 
+nombre de répartition de fenêtre (sauf ceux qui n'en ont pas). 
 ```{r}
 # pairs(data[, quanti], pch = '.', cex = 0.1, cex.labels = 0.55)
 plot(2*data$Roof.area + data$Wall.area, data$Surface.area)
 ```
+L'analyse de la courbe nous montre que les variables Roof.area, Wall.area et Surface.area sont liées par la relation  :2*Roof.area+Wall.area=Surface.area.
+
 
 Même nombre de batiments faisant face à chaque orientation. Même nombre de batiments avec les différentes répartitions de fenêtres, sauf les batiments sans fenêtres.
 
@@ -71,7 +79,7 @@ On voit que la surface vitrée à une influence sur l'énergie consommée.
 ```{r}
 boxplot(Energy ~ Overall.height, data = data)
 ```
-
+On voit que la variable Overall.height a une influence sur l'énergie consommée.
 ## Analyse en Composantes Principales (ACP)
 
 On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package 
@@ -528,7 +536,8 @@ plot(selectb,scale="adjr2",main="Backward adjusted R²")
 ```{r}
 # Modéle linéaire généralisée
 # Définition de Energy.efficiencyBIs
-data.mlg = data.frame(data, Energy.efficiency.bis = rep(0, nrow(data)))
+new_data <- data[,c(-11,-12,-13,-14,-15)]
+data.mlg = data.frame(new_data, Energy.efficiency.bis = rep(0, nrow(new_data)))
 data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1"
 data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0"
 data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
@@ -623,7 +632,7 @@ Le pseudo R2 obtenu est de 0.7796646 (contre  0.712583 pour le modèle additif).
 
 ### Recherche de sous modèle
 ```{r}
-modelbestinter = step(mlg_rg_inter)
+modelbestinter = step(mlg_rg_inter,trace = FALSE)
 summary(modelbestinter)
 ```
 ### Comparaison du modèle complet avec le sous modèle trouvé par la méthode AIC
@@ -658,8 +667,8 @@ Dans la mise en forme du jeu de données, la variable Energie et Roof.Area ont �
 d'une part les variables Surface.area, Wall.area et la Roof.area sont liées, et d'aute part la variable de sortie 
 ici considérée est Energy.efficiency.
 ```{r}
-data.mlg.p = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
-data.mlg.p<-data[,c(-4,-9)]
+
+data.mlg.p<-new_data[,c(-4,-9)]
 ```
 ### Statistique descriptive 
 ```{r}
