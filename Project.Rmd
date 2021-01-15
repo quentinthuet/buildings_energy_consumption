@@ -51,11 +51,15 @@ summary(data)
 quanti = c(1:5, 7, 9)
 quali = c(6, 8, 10)
 ```
-
+La réalisation de la commande summary nous permet  de noter qu'il y'a 
+le même nombre de batiments pour chaque oriention et aussi  le même 
+nombre de répartition de fenêtre (sauf ceux qui n'en ont pas). 
 ```{r}
 # pairs(data[, quanti], pch = '.', cex = 0.1, cex.labels = 0.55)
 plot(2*data$Roof.area + data$Wall.area, data$Surface.area)
 ```
+L'analyse de la courbe nous montre que les variables Roof.area, Wall.area et Surface.area sont liées par la relation  :2*Roof.area+Wall.area=Surface.area.
+
 
 Même nombre de batiments faisant face à chaque orientation. Même nombre de batiments avec les différentes répartitions de fenêtres, sauf les batiments sans fenêtres.
 
@@ -71,7 +75,7 @@ On voit que la surface vitrée à une influence sur l'énergie consommée.
 ```{r}
 boxplot(Energy ~ Overall.height, data = data)
 ```
-
+On voit que la variable Overall.height a une influence sur l'énergie consommée.
 ## Analyse en Composantes Principales (ACP)
 
 On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package 
