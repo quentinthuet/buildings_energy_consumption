@@ -532,7 +532,8 @@ plot(selectb,scale="adjr2",main="Backward adjusted R²")
 ```{r}
 # Modéle linéaire généralisée
 # Définition de Energy.efficiencyBIs
-data.mlg = data.frame(data, Energy.efficiency.bis = rep(0, nrow(data)))
+new_data <- data[,c(-11,-12,-13,-14,-15)]
+data.mlg = data.frame(new_data, Energy.efficiency.bis = rep(0, nrow(new_data)))
 data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1"
 data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0"
 data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
@@ -627,7 +628,7 @@ Le pseudo R2 obtenu est de 0.7796646 (contre  0.712583 pour le modèle additif).
 
 ### Recherche de sous modèle
 ```{r}
-modelbestinter = step(mlg_rg_inter)
+modelbestinter = step(mlg_rg_inter,trace = FALSE)
 summary(modelbestinter)
 ```
 ### Comparaison du modèle complet avec le sous modèle trouvé par la méthode AIC
@@ -662,8 +663,8 @@ Dans la mise en forme du jeu de données, la variable Energie et Roof.Area ont �
 d'une part les variables Surface.area, Wall.area et la Roof.area sont liées, et d'aute part la variable de sortie 
 ici considérée est Energy.efficiency.
 ```{r}
-data.mlg.p = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
-data.mlg.p<-data[,c(-4,-9)]
+
+data.mlg.p<-new_data[,c(-4,-9)]
 ```
 ### Statistique descriptive 
 ```{r}
