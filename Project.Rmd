@@ -698,7 +698,7 @@ data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE
 
 ### Ajustement du modèle.
 ```{r}
-modelord <- vglm(Energy.efficiency ~ ., data = data.mlg.p, family = acat())
+modelord <- vglm(Energy.efficiency ~ Relative.compactness, data = data.mlg.p, family = acat())
 ```
 
 # Non-linear models
@@ -706,7 +706,14 @@ modelord <- vglm(Energy.efficiency ~ ., data = data.mlg.p, family = acat())
 ## Classification
 
 ```{r}
-data.nlm.class = data.mlg[c(1,2,3,4,5,6,7,13)]
+prct_bien_classe=function(table){
+      a =(table[1]+table[4])/sum(table)
+    return(a) 
+}
+```
+
+```{r}
+data.nlm.class = data.mlg
 
 # On sépare les données en un ensemble d'apprentissage et un ensemble de test
 nb_train <- floor(0.75 * nrow(data.nlm.class))
@@ -718,7 +725,13 @@ test <- data.nlm.class[-train_ind, ]
 
 ```{r}
 hatY = (mlg_rg$fitted.values > 0.5)
-table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
+# table de contingences pour la régression logistique
+t_reg_log = table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
+t_reg_log
+```
+```{r}
+pct_reg_log = prct_bien_classe(t_reg_log)
+pct_reg_log
 ```
 
 ```{r}
@@ -730,9 +743,13 @@ rpart.plot(tree.dis)
 
 ```{r}
 pred.tree <- predict(tree.dis,newdata=test,type="class")
-table(pred.tree, test[, "Energy.efficiency.bis"])
+t_class_dis = table(pred.tree, test[, "Energy.efficiency.bis"])
+t_class_dis
 ```
-
+```{r}
+pct_class_dis = prct_bien_classe(t_class_dis)
+pct_class_dis
+```
 
 ```{r}
 xmat <- xpred.rpart(tree.dis)
@@ -748,7 +765,11 @@ rpart.plot(tree.dis.opti)
 
 ```{r}
 pred.tree.opti <- predict(tree.dis,newdata=test,type="class")
-table(pred.tree.opti, test[, "Energy.efficiency.bis"])
+t_class_dis = table(pred.tree.opti, test[, "Energy.efficiency.bis"])
+```
+```{r}
+pct_class_dis = prct_bien_classe(t_class_dis)
+pct_class_dis
 ```
 
 ```{r}
@@ -773,12 +794,16 @@ rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train,
                        xtest = test[, -8], ytest = test[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
 pred.rf.opti <- rf.dis.opti$test$predicted
-table(pred.rf.opti, test[,"Energy.efficiency.bis"])
+t_arbre = table(pred.rf.opti, test[,"Energy.efficiency.bis"])
+pct_arbre = prct_bien_classe(t_arbre)
+t_arbre
 ```
 
 ## Régression
+
+### Mise en forme des données tests et apprentissage.
 ```{r}
-data.nlm.reg = data[c(1,2,3,5,6,7,8,9)]
+data.nlm.reg = new_data[,c(-4,-10)]
 
 # On sépare les données en un ensemble d'apprentissage et un ensemble de test
 nb_train <- floor(0.75 * nrow(data.nlm.reg))
@@ -787,10 +812,43 @@ train_ind <- sample(seq_len(nrow(data.nlm.reg)), size = nb_train)
 train <- data.nlm.reg[train_ind, ]
 test <- data.nlm.reg[-train_ind, ]
 ```
-
+### Estimation de l'arbre de régression.
 ```{r}
 library(rpart) # chargement de la librairie
 library(rpart.plot)
-tree.dis.reg=rpart(Energy ~.,data=train, cp=0.001)
-rpart.plot(tree.dis.reg)
+tree.reg=rpart(Energy ~.,data=train, cp=0.001)
+rpart.plot(tree.reg)
+```
+
+
+```{r}
+plot(tree.reg)
+text(tree.reg)
+```
+### Elagage de l'abre de régression.
+```{r}
+xmat <- xpred.rpart(tree.reg)
+xerr <- (xmat-train[,"Energy"])^2
+CVerr <- apply(xerr, 2, sum)
+```
+### Construction de l'arbre avec cp minimisant l'erreur
+Pour cela, nous allons rechercher le cp qui minimiser l'erreur.
+```{r}
+cpMin <- as.numeric(attributes(which.min(CVerr))$names)
+tree.reg <- rpart(Energy~., data = train, control = rpart.control(cp = cpMin))
+#library(partykit)
+#plot(as.party(tree.dis.reg), type = "simple")
+```
+
+### Construction de l'arbre prédit par régression sur l'ensemble test
+```{r}
+pred.treer <- predict(tree.reg,newdata=test)
+```
+### Table de contingences
+```{r}
+t_reg = table(pred.treer > 35, test[, "Energy"] > 35)
+```
+```{r}
+pct_reg = prct_bien_classe(t_reg)
+pct_reg
 ```
