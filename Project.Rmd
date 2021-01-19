@@ -18,6 +18,7 @@ library(glmnet)
 library(gridExtra)
 library(bestglm)
 library(plotly)
+library(caret)
 ```
 
 # Analyse des données
@@ -399,15 +400,15 @@ Cependant, ce modèle conserve beaucoup de variables, on peut donc se demander s
 Nous allons réaliser dans un premier temps une sélection de variables par critère BIC.
 
 ```{r}
-modselect_bic_back = stepAIC(model_quanti_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)),)
+modselect_quanti_bic_back = stepAIC(model_quanti_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)),)
 paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + "))
 ```
 
 Le modèle selectionné conserve nos 5 des variables quantitatives, mais supprime certaines de de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
 
 ```{r}
-anova(modselect_bic_back, model_quanti_complet)
-r.sq = summary(modselect_bic_back)$r.squared ; paste("R² =", r.sq)
+anova(modselect_quanti_bic_back, model_quanti_complet)
+r.sq = summary(modselect_quanti_bic_back)$r.squared ; paste("R² =", r.sq)
 ```
 
 On obtient une p-valeur de 0.2864. On ne rejette donc pas notre modèle selectionné au seuil de 5 \%.
@@ -493,7 +494,7 @@ Certains variables s'écrasent bien à 0. En choisissant un seuil de 0.02, la r�
 
 Nous n'avons jusqu'à présent considéré que les variables quantitatives. Nous allons maintenant essayer de voir si les variables qualitatives de notre jeu de données ne pourraient pas nous apporter des informations supplémentaires.
 
-## Model depending on all variables
+## Modèle délendant de toutes les variables
 
 On construit un modèle complet avec interactions, et on teste un sous-modèle sans interactions pour voir si on pourrait s'en passer.
 
@@ -507,27 +508,31 @@ anova(model_complet, model_no_interactions)
 La p-valeur est très faible : on doit conserver des interactions. Nous allons essayer de voir si nous ne pourrions pas nous en passer de certaines grâce à un algorithme de sélection de variables.
 
 ```{r}
-model_no_interactions = lm(Energy ~ . - Roof.area, data = data[,c(1:9)])
-anova(model_complet, model_no_interactions)
-summary(model_reduit1)
+modselect_bic_back = stepAIC(model_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)))
+formula = paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + ")) ; formula
 ```
+
+Ainsi la sélection laisse complètement de côté la variable `orientation`, et supprime également certaines interactions. On réalise un test de sous-modèle afin de savoir si nous pouvons simplifier le modèle complet.
 
 ```{r}
-selectf = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)],nbest=1,nvmax=10,method="forward")
-plot(selectf,scale="bic",main="Forward BIC")
-plot(selectf,scale="Cp",main="Forward Cp")
-plot(selectf,scale="adjr2",main="Forward adjusted R²")
-
-selectb = regsubsets(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)],nbest=1,nvmax=10,method="backward")
-plot(selectb,scale="bic",main="Backward BIC")
-plot(selectb,scale="Cp",main="Backward Cp")
-plot(selectb,scale="adjr2",main="Backward adjusted R²")
+anova(modselect_bic_back, model_complet)
+summary(modselect_bic_back)
 ```
+
+On obtient une p-valeur supérieure à 99\%, on ne rejette donc pas le modèle réduit, et on peut simplifier le modèle.
+
+## Pouvoir de prédiction du modèle
+
+Maintenant qu'on a déterminé les variables d'intérêt, nous allons tester le pouvoir de prédiction de notre modèle. Pour cela, nous allons faire de la validation croisée.
 
 ```{r}
-# model_reduit2
-# anova()
+set.seed(42)
+train.control = trainControl(method = "cv", number = 10, p = 0.8)
+model_cv = train(modselect_bic_back$terms, data = data, method = "lm", trControl = train.control)
+print(model_cv)
 ```
+
+On obtient un $R^2$ de presque 90\%, le modèle passe donc bien par les données. De plus, l'erreur moyenne absolue de moins de 5. En sachant que la variable `Energy` s'étale de 10 à 95, notre erreur est assez faible : elle représente moins de 6\% de l'étendue de nos données.
 
 # Modèle linéaire généralisée
 
