@@ -401,7 +401,7 @@ Nous allons réaliser dans un premier temps une sélection de variables par crit
 
 ```{r}
 modselect_quanti_bic_back = stepAIC(model_quanti_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)),)
-paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + "))
+paste("Energy ~", paste(dimnames(modselect_quanti_bic_back$qr$qr)[[2]][-1], collapse=" + "))
 ```
 
 Le modèle selectionné conserve nos 5 des variables quantitatives, mais supprime certaines de de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
