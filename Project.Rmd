@@ -1,6 +1,7 @@
 ---
 title: "Projet Stats"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -472,10 +473,10 @@ fitlasso <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda
 dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)),
                    theta=as.vector(t(fitlasso$beta)),
                    variable=rep(colnames(expli),each=length(fitlasso$lambda)))
-ggplotly(ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
+ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = 0.02, linetype = "dotted", color = "red") +
-  theme(legend.position="right"))
+  theme(legend.position="right")
 ```
 
 ```{r, eval=FALSE}
@@ -562,10 +563,11 @@ mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
 ```
 L'analyse descriptive du modèle linéaire généralisé  par rapport à la variable 
 Energy.efficiency.bis nous permet de noter les points suivant :
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont une Relative compactness faible.
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont une Surface.area plus grande.
-    * Les individus qui ont une meilleure Energy.efficiency.bis ont des surface de Wall.area faible.
-    * Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis
+
+* Les individus qui ont une meilleure Energy.efficiency.bis ont une Relative compactness faible.
+* Les individus qui ont une meilleure Energy.efficiency.bis ont une Surface.area plus grande.
+* Les individus qui ont une meilleure Energy.efficiency.bis ont des surface de Wall.area faible.
+* Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis
     
 ## Modèle linéaire généralisé additif
 Puisque, les variables Surface.area, Wall.area et la Roof.area sont liées, nous allons l'enlever du jeu de données.
@@ -819,6 +821,7 @@ train_ind <- sample(seq_len(nrow(data.nlm.reg)), size = nb_train)
 train <- data.nlm.reg[train_ind, ]
 test <- data.nlm.reg[-train_ind, ]
 ```
+
 ### Estimation de l'arbre de régression.
 ```{r}
 library(rpart) # chargement de la librairie
@@ -832,12 +835,14 @@ rpart.plot(tree.reg)
 plot(tree.reg)
 text(tree.reg)
 ```
+
 ### Elagage de l'abre de régression.
 ```{r}
 xmat <- xpred.rpart(tree.reg)
 xerr <- (xmat-train[,"Energy"])^2
 CVerr <- apply(xerr, 2, sum)
 ```
+
 ### Construction de l'arbre avec cp minimisant l'erreur
 Pour cela, nous allons rechercher le cp qui minimiser l'erreur.
 ```{r}
@@ -851,6 +856,7 @@ tree.reg <- rpart(Energy~., data = train, control = rpart.control(cp = cpMin))
 ```{r}
 pred.treer <- predict(tree.reg,newdata=test)
 ```
+
 ### Table de contingences
 ```{r}
 t_reg = table(pred.treer > 35, test[, "Energy"] > 35)
