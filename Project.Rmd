@@ -228,34 +228,47 @@ Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performan
 
 ## Clustering de variables
 
+Nous allons essayer de voir si nous pouvons classer nos variables en différents
+groupes qui nous permettraient de prédire leur consommation énergétique.
+
 ### Analyse visuelle
 
-```{r}
-ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = "#0c4c8a") +
- theme_minimal()
-ggplot(data) +
- aes(x = Glazing.area, y = Energy) +
- geom_point(size = 1L, colour = "#0c4c8a") +
- theme_minimal()
+Nous menons d'abord une analyse visuelle au sein de nos différentes variables 
+afin de mettre en évidence de potentiels groupes.
+
+```{r, fig.dim=c(6,3)}
+gg1 = ggplot(data) +
+  aes(x = Relative.compactness, y = Energy) +
+  geom_point() + theme_minimal()
+gg2 = ggplot(data) +
+  aes(x = Glazing.area, y = Energy) +
+  geom_point() + theme_minimal()
+grid.arrange(gg1,gg2,ncol=2)
 ```
 
-Visuellement, c'est selon la compacité relative et la surface vitrée que le distingue le mieux des groupes.
-Selon la compacité relative, on constate principalement deux groupes. On peut également voir 12 groupes mais ceux-ci sont moins évidents.
-Selon la surface vitrée, on distingue principalement 4 groupes.
+Visuellement, c'est selon la compacité relative et la surface vitrée que l'on distingue le mieux des groupes.
+
+Avec la compacité relative, on constate principalement deux groupes. On peut également voir 12 groupes mais ceux-ci sont moins évidents.
+
+Avec la surface vitrée, on distingue principalement quatre groupes avec deux sous-groupes
+à chaque fois.
 
 ### Clustering hiérarchique
+
 Après cette analyse visuelle, nous allons utiliser des méthodes de clustering pour confirmer ou infirmer nos observations. Commençons par le clustering hiérarchique.
 
-```{r}
+```{r, fig.dim=c(6,4), fig.show='hold'}
+par(mfrow=c(1,2))
+par(mar = c(4,4,2,1))
 hc = hclust(dist(data[c(1,2,3,4,5,7)]), method = "ward.D2")
-plot(hc)
+plot(hc, xlab = "")
 abline(h=3400,col="red")
 abline(h=1300,col="red")
 abline(h=880,col="red")
 abline(h=200,col="red")
-plot(sort(hc$height, decreasing = TRUE)[1:20])
+# par(mar = c(4,4,4,0))
+plot(sort(hc$height, decreasing = TRUE)[1:20],
+     ylab = "Variance inter-classe")
 abline(v=1.5,col="red")
 abline(v=3.5,col="red")
 abline(v=4.5,col="red")
@@ -266,97 +279,64 @@ Sur le graphique de la variance inter-classe, on observe un saut important au pa
 
 Ces premiers outils semblent confirmer les nombres de classes qui semblent pertinents : 2, 4 et 12.
 
-On réalise donc dans un premier temps un découpage en 2, 4 et 12 classes selon le clustering hiérarchique. On compare ces résultats avec nos observations selon plusieurs variables explicatives.
+On réalise donc dans un premier temps un découpage en 2, 4 et 12 classes selon le clustering hiérarchique. On superpose ensuite ces classes sur nos graphes précédents.
 
-```{r}
+```{r, fig.height=2.5}
 class2 = cutree(hc, k = 2)
-ggplot(data) +
+gg1 = ggplot(data) +
  aes(x = Relative.compactness, y = Energy) +
  geom_point(size = 1L, colour = class2) +
  theme_minimal()
 class4 = cutree(hc, k = 4)
-ggplot(data) +
+gg2 = ggplot(data) +
  aes(x = Relative.compactness, y = Energy) +
  geom_point(size = 1L, colour = class4) +
  theme_minimal()
 class12 = cutree(hc, k = 12)
-ggplot(data) +
+gg3 = ggplot(data) +
  aes(x = Relative.compactness, y = Energy) +
  geom_point(size = 1L, colour = class12) +
  theme_minimal()
+grid.arrange(gg1,gg2,gg3,ncol=3)
 ```
 
-Visuellement selon la compacité relative, le découpage en 2 groupes et celui en 12 groupes semblent très pertinents. Celui en 4 groupes ne semble pas s'expliquer par la compacité relative.
+En regardant la compacité relative, les découpages en 2 et 12 classes semblent très pertinents. Celui en 4 classe l'est moins. On peut un peu mieux voir la séparation des 4 classes en regardant la surface murée ci-dessous. On aurait tout de même envie de découper en plus de classes dans ce graphique.
 
-```{r}
-class2 = cutree(hc, k = 2)
-ggplot(data) +
- aes(x = Glazing.area, y = Energy) +
- geom_point(size = 1L, colour = class2) +
- theme_minimal()
-class4 = cutree(hc, k = 4)
-ggplot(data) +
- aes(x = Glazing.area, y = Energy) +
- geom_point(size = 1L, colour = class4) +
- theme_minimal()
-class12 = cutree(hc, k = 12)
-ggplot(data) +
- aes(x = Glazing.area, y = Energy) +
- geom_point(size = 1L, colour = class12) +
- theme_minimal()
-```
-
-Selon la surface vitrée, seul le découpage en 2 classes semble pertinent. On aurait pu s'attendre à un découpage en 4 classes pertinents sur ce graphique mais ce n'est pas le cas.
-
-```{r}
-class2 = cutree(hc, k = 2)
-ggplot(data) +
- aes(x = Wall.area, y = Energy) +
- geom_point(size = 1L, colour = class2) +
- theme_minimal()
-class4 = cutree(hc, k = 4)
+```{r, fig.dim=c(4,3)}
 ggplot(data) +
  aes(x = Wall.area, y = Energy) +
  geom_point(size = 1L, colour = class4) +
  theme_minimal()
-class12 = cutree(hc, k = 12)
-ggplot(data) +
- aes(x = Wall.area, y = Energy) +
- geom_point(size = 1L, colour = class12) +
- theme_minimal()
 ```
 
-Finalement, le découpage en 4 classes semble pertinent selon la surface des murs.
+Le découpage en 2 classes semble très marqué, nous aimerions savoir si il n'est pas lié à la seule variable à deux modalités de notre jeu de donnée : la hauteur du batiment.
+
+```{r}
+table(class2, data$Overall.height)
+```
+
+La table de contingence confirme bien notre intuition : les deux classes correspondent exactement aux deux hauteurs de bâtiments de notre jeu de données.
 
 ### k-means
 
-On utilise à présent un autre outil : k-means. Comparons les résultats avec ceux du clustering hiérarchique.
+On utilise à présent un nouvel outil : les k-means. Nous souhaitons le comparer
+au clustering hiérarchique.
 
 ```{r}
 # k-means à 2 classes
 kmres2 = kmeans(data[,c(1:5,7)], centers = 2)
 kmclus2 = kmres2$cluster
-
-pairs(data[,quanti], col = kmclus2)
-
-ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = kmclus2) +
- theme_minimal()
-
-# clustering hierarchique à 2 classes
-ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = class2) +
- theme_minimal()
+table(kmres2$cluster, data$Overall.height)
 ```
-
-Pour le découpage à deux classes, les deux méthodes fournissent exactement les mêmes résultats.
+Pour deux classes, les deux méthodes fournissent exactement la même découpe : selon la hauteur.
 
 ```{r}
 # k-means à 4 classes
 kmres4 = kmeans(data[,c(1:5,7)], centers = 4)
 kmclus4 = kmres4$cluster
+
+table(kmclus4,class4)
+# combinations(c(1,2,3,4))
 
 pairs(data[,quanti], col = kmclus4)
 
