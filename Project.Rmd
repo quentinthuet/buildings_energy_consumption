@@ -1,10 +1,16 @@
 ---
-title: "Projet Stats"
+title: "Projet de statistiques : prédiction de la consommation énergétique de bâtiments"
 output:
-  pdf_document: default
+  pdf_document:
+    toc: true
+    number_sections: true
+    toc_depth: 3
   html_document:
     df_print: paged
+toc-title: "Sommaire"
 ---
+
+\newpage
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold")
@@ -675,7 +681,6 @@ Dans la mise en forme du jeu de données, la variable Energie et Roof.Area ont �
 d'une part les variables Surface.area, Wall.area et la Roof.area sont liées, et d'aute part la variable de sortie 
 ici considérée est Energy.efficiency.
 ```{r}
-
 data.mlg.p<-new_data[,c(-4,-9)]
 ```
 ### Statistique descriptive 
