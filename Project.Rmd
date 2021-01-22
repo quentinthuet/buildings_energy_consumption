@@ -8,12 +8,13 @@ output:
   html_document:
     df_print: paged
 toc-title: "Sommaire"
+geometry: margin=2cm
 ---
 
 \newpage
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold")
+knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold", cache = TRUE)
 library(ggfortify)
 library(VGAM)
 library(ROCR)
@@ -30,26 +31,43 @@ library(plotly)
 library(caret)
 ```
 
-# Analyse des données
+# Introduction et présentation du jeu de données
 
-## Statistiques descriptives
+L'objectif de ce projet est de prédire la consommation énergétique de différents
+bâtiments en fonction de certaines de leurs caractéristiques (forme, surface,
+fenêtres, orientation...). Cette consommation d'énergie est exprimable sous forme
+quantitative (numériquement) ou qualitative (en classes de A à G).
 
-Le jeu de données est composé de 768 bâtiments. Pour chaque bâtiment, nous possédons les 10 variables suivantes :
+Nous commencerons par une première partie d'analyse naïve de notre jeu de données,
+avant de rentrer plus en profondeur dans la construction de modèles de prédiction.
+
+Les modèles que nous avons implémentés sont des modèles linéaires (classiques 
+et généralisés), ainsi que des modèles non linéaires (classification hiérarchique, 
+arbre optimal, forêts aléatoires).
+
+Nous disposons pour notre étude d'un jeu de données de 768 bâtiments.
+Pour chaque bâtiment, nous possédons les 10 caractéristiques suivantes :
 
 * Quantitatives :
-  + `Relative.compactness` : compacité relative à un cube de même volume ($RC = 6 \times V^{0.66} \times A^{-1}$ avec $V$ et $A$ respectivement le volume et l'aire totale du batiment (murs, toit, sol))
+  + `Relative.compactness` : compacité relative à un cube de même volume ($RC = 6 \times V^{0.66} \times A^{-1}$ avec $V$ et $A$ respectivement le volume et l'aire totale du batiment : murs + toit + sol)
   + `Surface.area` : surface totale (sol + murs + toit)
   + `Wall.area` : surface de mur extérieurs
   + `Roof.area` : surface de toit
   + `Glazing.area` : Surface vitrée (en pourcentage de la surface au sol)
   + `Energy` : Énergie consommée
 * Catégorielles :
-  + `Overall.height` : hauteur du batiment (soit 3.5 soit 7 m)
+  + `Overall.height` : hauteur du batiment (soit 3.5, soit 7 m)
   + `orientation` : orientation de la maison (Nord, Sud, Est, Ouest)
-  + `Glazing.area.distr` : Distribution des vitres (uniforme, ou plus d'un coté)
+  + `Glazing.area.distr` : Distribution des vitres (uniforme, ou davantage d'un coté)
   + `Energy.efficiency` : Indicateur de l'énergie consommée (de A (meilleur) à G (pire))
+  
+On cherchera donc dans les prochaines parties à prédire les variables `Energy` et `Energy.efficiency`. 
 
-On cherchera dans les prochaines parties à prédire les variables `Energy` et `Energy.efficiency` en fonction des autres. Nous allons dans un premier temps réaliser quelques statistiques exploratoires sur toutes nos variables.
+# Analyse des données
+
+Nous allons dans un premier temps réaliser quelques statistiques exploratoires sur toutes nos variables.
+
+## Statistiques descriptives
 
 ```{r, echo=FALSE}
 setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
@@ -63,68 +81,109 @@ data$orientation = as.factor(data$orientation)
 data$Overall.height = factor(data$Overall.height, ordered = TRUE)
 data$Glazing.area[which(data$Glazing.area.distr == 0)] = 0
 # Informations sur le jeu de données
-summary(data)
+s = summary(data[,c(6,5,8,9,10)])
+colnames(s)[5] = "Energy.eff" ; s
 # Séparation des variables quantitatives et qualitatives
-quanti = c(1, 2, 3, 4, 7, 9)
-quali = c(5, 6, 8, 10)
-allvariables = 1:10
+quanti = c(1, 2, 3, 4, 7, 9) ; quali = c(5, 6, 8, 10) ; allvariables = 1:10
 ```
-La commande summary nous permet  de noter qu'il y a
-le même nombre de bâtiments pour chaque orientation, pour chaque hauteur.
-La distribution des fenêtres est aussi répartie équitablement entre les bâtiments
-(sauf pour ceux sans fenêtres (modalité 0), qui sont moins nombreux).
 
-```{r}
-plot(2*data$Roof.area + data$Wall.area, data$Surface.area, pch='.')
+On peut noter qu'il y a
+le même nombre de bâtiments pour chaque orientation et pour chaque hauteur.
+La distribution des fenêtres est aussi répartie équitablement entre les bâtiments,
+sauf pour ceux sans fenêtres (modalité 0) qui sont moins nombreux.
+
+L'énergie consommée s'étale de 10 à 95, avec une moyenne de 46. Les bâtiment avec
+une faible consommation d'énergie (A ou B) sont assez nombreux (41\% des bâtiments).
+
+```{r, fig.dim=c(8,4)}
+par(mfrow=c(1,2))
+plot(2*data$Roof.area + data$Wall.area, data$Surface.area, pch='.',
+     main = "Relation entre les surfaces",
+     xlab = "2 * Surface de toit + Surface murée",
+     ylab = "Surface totale")
+plot(1/(data$Surface.area), data$Relative.compactness, pch='.',
+     main = "Relation entre compacité et surface",
+     xlab = "Inverse de la surface totale",
+     ylab = "Compacité relative")
 ```
-La courbe précédente nous montre que les variables `Roof.area`, `Wall.area` et `Surface.area` sont liées par la relation :
+
+La premier graphe nous montre que les variables `Roof.area`, `Wall.area` et `Surface.area` sont liées par la relation :
 $\texttt{Surface.area} = 2 \times \texttt{Roof.area} + \texttt{Wall.area}$.
+Ainsi, nous n'étudierons pas la variable `Roof.area` plus en détails par la suite, étant donnée
+qu'elle peut être directement obtenue depuis d'autres variables.
+<!-- Virer variable Roof.area ? -->
 
-```{r, fig.dim=c(5,10)}
-gg1 = ggplot(data) +
-  aes(x = Glazing.area, y = Energy, colour = as.factor(Overall.height)) +
-  geom_smooth(method = "lm") +
-  geom_point(size = 1L) +
-  theme_minimal()
-gg2 = ggplot(data) + geom_boxplot(data=data, aes(x=Overall.height, y=Energy)) +
-  theme_minimal()
-grid.arrange(gg1,gg2,ncol=2)
+On observe sur le second graphe une relation linéaire entre la compacité relative et l'inverse de la surface totale. Ça n'est pas étonnant au vu de la formule de la compacité relative : $RC = 6 \times V^{0.66} \times A^{-1}$. Cependant, ici la relation linéaire n'est pas exacte comme dans le cas précédent : il y a potentiellement de l'information contenue dans les deux variables. Nous n'en écarterons donc pas une pour notre étude.
+
+Nous avons également essayé de voir quelles étaient les variables les plus influentes sur l'énergie consommée.
+
+```{r, fig.dim=c(8,4.5)}
+par(mfrow = c(2,2), mar = c(4,4,2,1))
+plot(Energy ~ Relative.compactness, data = data, pch = '.')
+plot(Energy ~ Surface.area, data = data, pch = '.')
+plot(Energy ~ Wall.area, data = data, pch = '.')
+boxplot(Energy ~ Overall.height, data = data, pch = '.')
 ```
 
-On voit que la surface vitrée à une influence claire sur l'énergie consommée. La hauteur du bâtiment joue aussi un rôle important.
+On voit que les variables liées à la forme du bâtiment jouent un rôle important
+dans la consommation d'énergie. Ainsi, les bâtiments les moins consommateurs sont
+ceux qui sont : moins hauts, plus compacts, de surface totale plus importante,
+et de surface murée plus faible.
+
+```{r, fig.dim=c(8,4.5)}
+layout(matrix(c(1,2,3,2), 2, 2, byrow = TRUE))
+par(mar = c(4,4,2,1))
+boxplot(Energy ~ orientation, data = data)
+plot(Energy ~ Glazing.area, data = data)
+boxplot(Energy ~ Glazing.area.distr, data = data)
+```
+
+On voit ici que l'orientation ne semble pas avoir d'influence sur l'énergie consommée.
+
+Pour la surface vitrée, on voit que les bâtiments sans vitres (modalité 0 de `Glazing.area.distr`
+et valeur 0 de `Glazing.area`) consomment comment on s'y attend moins d'énergie que les bâtiments vitrés.
+En revanche, la distribution des vitres ne semble pas avoir de réel impact
+(modalités 1 à 5 de `Glazing.area.distr`). Il semble cependant qu'il y ait une petite augmentation
+de la consommation avec l'augmentation de la surface vitrée.
+
+Afin d'étudier d'éventuelles corrélations entre nos variables, nous allons
+maintenant mener une analyse en composantes principales.
 
 ## Analyse en Composantes Principales (ACP)
 
-On souhaite réaliser une ACP afin de mener une analyse en dimension plus faible. Nous allons pour cela utiliser le package
-`FactoMineR` qui contient toutes les fonctions nécessaires à la réalisation de notre ACP. On cherche d'abord combien d'axes principaux nous allons avoir besoin.
+On souhaite réaliser une ACP afin de se ramener à un nombre de dimensions plus faible.
+Nous allons pour cela utiliser le package `FactoMineR` qui contient toutes les
+fonctions nécessaires à la réalisation de notre ACP.
+On cherche d'abord combien d'axes principaux nous allons avoir besoin.
 
-```{r}
+```{r, fig.dim=c(8,3.5)}
 library("FactoMineR")
 par(mfrow=c(1,2))
 res.acp <- PCA(data,scale.unit=T,quali.sup=quali,quanti.sup=9,ncp=8, graph=F)
-barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage d'inertie",
+barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage de variance",
         names.arg = seq(1,5), xlab = "Composantes principales")
 barplot(res.acp$eig[,"cumulative percentage of variance"],
-        main="Pourcentage d'inertie cumulé",
+        main="Pourcentage de variance cumulée",
         names.arg = seq(1,5), xlab = "Composantes principales")
 abline(h = 95, col = "red")
 print(paste("Pourcentage d'inertie expliquée par les trois premiers axes :",
             res.acp$eig[,"cumulative percentage of variance"][3]))
 ```
 
-On voit sur le premier graphe que l'inertie portée par les trois premiers axes principaux est prépondérante par rapport aux autres. D'après le graphe de pourcentage d'inertie cumulée, ils expliquent presque 99\% de l'inertie. Les deux premiers axes ne portent eux que 82\% de l'inertie. Ne choisir que deux axes effacerait trop d'informations. Nous allons donc poursuivre notre analyse sur les trois premiers axes principaux.
+On voit sur le premier graphe que l'inertie portée par les trois premiers axes principaux est prépondérante par rapport aux autres. Ils expliquent presque 99\% de l'inertie. Les deux premiers axes ne portent eux que 82\% de l'inertie. Ne choisir que deux axes effacerait trop d'informations. Nous allons donc poursuivre notre analyse sur les trois premiers axes principaux.
 
-Les graphes des variables nous donnent des informations très intéressantes sur les variables corrélées.
+Les graphes des variables nous donnent des informations intéressantes sur les variables corrélées.
 
 ```{r, fig.dim=c(6,6)}
+
+layout_matrix = matrix(c(1,2,3,3), 2, 2, byrow = TRUE)
 gg1 = plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = FALSE,
-               title = "Graphe des variables (axes 1 et 2)")
+               title = "Variables (axes 1/2)")
 gg2 = plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE,
-               title = "Graphe des variables (axes 1 et 3)")
+               title = "Variables (axes 1/3)")
 gg3 = plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE,
-               title = "Graphe des variables (axes 2 et 3)")
-layout_matrix <- matrix(c(1, 1, 2, 2, 4, 3, 3, 4), nrow = 2, byrow = TRUE)
-grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
+               title = "Variables (axes 2/3)")
+grid.arrange(gg1,gg2,gg3,layout_matrix=layout_matrix)
 ```
 
 Les variables `Relative.compactness`, `Surface.area` et `Roof.area` semblent être plutôt portées par le premier axe principal (en positif pour les deux premières, négatif pour les deux autres).
@@ -138,7 +197,7 @@ Ainsi, l'énergie dépensée dépend d'abord de la forme du bâtiment, et ensuit
 Nous pouvons également observer les graphes des individus. Nous représentons les différentes classes énergétiques par couleur.
 
 
-```{r, fig.dim=c(7,7)}
+```{r, fig.dim=c(7,4)}
 gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
            habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
   theme(text = element_text(size=8))
@@ -153,25 +212,22 @@ grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 
 On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G.
 
-Les maisons dont la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ces maisons sont celles qui ont une compacité relative plus faible (plus basses et avec une surface au sol plus élevée), comme on peut le voir sur les graphiques suivants :
+Les bâtiments à la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ils sont plus bas et plus compacts, comme on peut le voir sur les graphiques suivants :
 
-```{r, fig.dim=c(7,7)}
+```{r, fig.dim=c(7,3)}
 gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
            habillage="Relative.compactness", label = "none", new.plot = FALSE) +
   theme(text = element_text(size=8))
 gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
-           habillage="Surface.area", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8))
-gg3 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
            habillage="Overall.height", label = "none") +
   theme(text = element_text(size=8))
-grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
+grid.arrange(gg1,gg2,ncol=2)
 ```
 
 Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques.
 
-
 ## Clustering de variables
+
 ### Analyse visuelle
 
 ```{r}
@@ -668,7 +724,6 @@ Comparaison du modèle AIC sans intéraction avec le modèle AIC avec intéracti
 Dans ce cas précis les modèle sans intéraction est un sous modèle de celui avec intéraction donc
 on peut réaliser un test de sous modèle
 ```{r}
- 
 anova(mlg_rg_best_aic,mlg_inter_best_aic,test="Chisq")
 ```
 
