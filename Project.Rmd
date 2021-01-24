@@ -14,7 +14,7 @@ geometry: margin=2cm
 \newpage
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold", cache = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold", cache = TRUE, fig.dim=c(8,3))
 library(ggfortify)
 library(VGAM)
 library(ROCR)
@@ -29,6 +29,7 @@ library(gridExtra)
 library(bestglm)
 library(plotly)
 library(caret)
+library(factoextra)
 ```
 
 # Introduction et présentation du jeu de données
@@ -200,13 +201,13 @@ Nous pouvons également observer les graphes des individus. Nous représentons l
 ```{r, fig.dim=c(7,4)}
 gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
            habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8))
+  theme(text = element_text(size=8), legend.position="none")
 gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali",
            habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8))
+  theme(text = element_text(size=8), legend.position="none")
 gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali",
            habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8))
+  theme(text = element_text(size=8)) + guides(color=guide_legend(ncol=2))
 grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
@@ -257,7 +258,7 @@ Avec la surface vitrée, on distingue principalement quatre groupes avec deux so
 
 Après cette analyse visuelle, nous allons utiliser des méthodes de clustering pour confirmer ou infirmer nos observations. Commençons par le clustering hiérarchique.
 
-```{r, fig.dim=c(6,4), fig.show='hold'}
+```{r, fig.dim=c(6,3.5), fig.show='hold'}
 par(mfrow=c(1,2))
 par(mar = c(4,4,2,1))
 hc = hclust(dist(data[c(1,2,3,4,5,7)]), method = "ward.D2")
@@ -324,6 +325,7 @@ au clustering hiérarchique.
 
 ```{r}
 # k-means à 2 classes
+set.seed(42)
 kmres2 = kmeans(data[,c(1:5,7)], centers = 2)
 kmclus2 = kmres2$cluster
 table(kmres2$cluster, data$Overall.height)
@@ -332,98 +334,68 @@ Pour deux classes, les deux méthodes fournissent exactement la même découpe :
 
 ```{r}
 # k-means à 4 classes
+set.seed(42)
 kmres4 = kmeans(data[,c(1:5,7)], centers = 4)
 kmclus4 = kmres4$cluster
 
-table(kmclus4,class4)
-# combinations(c(1,2,3,4))
-
-pairs(data[,quanti], col = kmclus4)
-
 ggplot(data) +
- aes(x = Wall.area, y = Energy) +
- geom_point(size = 1L, colour = kmclus4) +
- theme_minimal()
-
-# clustering hierarchique à 4 classes
-ggplot(data) +
- aes(x = Wall.area, y = Energy) +
- geom_point(size = 1L, colour = class4) +
- theme_minimal()
+  aes(x = Wall.area, y = Energy,
+      colour = as.factor(kmclus4), shape = as.factor(class4)) +
+  scale_shape_manual(values=1:nlevels(as.factor(class4))) +
+  labs(color = "K-means", shape = "Clustering hiérarchique") +
+  geom_point(size = 2) +
+  theme_minimal()
 ```
 
-Après plusieurs exécutions, k-means ne donne presque jamais le même résultat que le clustering hiérarchiques. Alors que le clustering hiérarchiques semble créer des classes pertinentes selon la surface des murs, le k-means réalise souvent un découpage moins pertinent. En effet, le découpage issu de k-means consiste souvent à séparer en deux les données, puis à séparer en trois un des deux groupes obtenus de façon assez arbitraire. Le découpage en 4 classes avec k-means est donc peu pertinent.
-
+Après plusieurs exécutions, les k-means ne donne presque jamais le même résultat que le clustering hiérarchique pour 4 classes. Ils réalisent souvent un découpage moins pertinent dans la surface des murs.
 
 ```{r}
 # k-means à 12 classes
+set.seed(42)
 kmres12 = kmeans(data[,c(1:5,7)], centers = 12)
 kmclus12 = kmres12$cluster
 
-pairs(data[,quanti], col = kmclus12)
-
 ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = kmclus12) +
- theme_minimal()
-
-# clustering hierarchique à 12 classes
-ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = class12) +
- theme_minimal()
+  aes(x = Wall.area, y = Energy, color = as.factor(kmclus12), shape = as.factor(class12)) +
+  scale_shape_manual(values=1:nlevels(as.factor(class12))) +
+  geom_point(size = 2) +
+  labs(color = "K-means", shape = "Clustering hiérarchique") +
+  theme_minimal() +
+  guides(color=guide_legend(ncol=3), shape=guide_legend(ncol=3))
 ```
 
-Selon les exécutions, k-means donne ici des résultats assez proches du clustering hiérarchique.
+C'est assez dur à visualiser graphiquement à cause du nombre de classes, mais les k-means donnent ici des résultats plus proches du clustering hiérarchique. Les séparations dépendent toutefois des executions, et semblent globalement un peu moins bien définies.
 
 ### Visualisation des classes sur les axes de l'ACP
 
-On utilise ici les classes obtenues par clustering hiérarchiques car celles-ci semblaient plus naturelles visuellement.
+On va essayer de projeter les classes obtenues par clustering sur l'ACP afin de voir si les découpages sont pertinents. Nous utilisons les classes obtenues par clustering hiérarchiques car celles-ci nous semblaient plus naturelles visuellement.
 
 ```{r}
-data$class2 = as.factor(class2)
-data$class4 = as.factor(class4)
-data$class12 = as.factor(class12)
-res.acp <- PCA(data,scale.unit=T,quali.sup=c(quali,11,12,13),quanti.sup=9,ncp=8, graph=F)
+data_classes = data
+data_classes$class2 = as.factor(class2)
+data_classes$class4 = as.factor(class4)
+data_classes$class12 = as.factor(class12)
+res.acp_classes=PCA(data_classes,scale.unit=T,quali.sup=c(quali,11,12,13),quanti.sup=9,graph=F)
+gg1 = fviz_pca_ind(res.acp_classes, c(1,2), habillage="class12", labels = F)
+gg2 = fviz_pca_ind(res.acp_classes, c(1,3), habillage="class12", labels = F)
+grid.arrange(gg1+theme(legend.position="none"),gg2+theme(legend.position="none"),ncol=2)
 ```
 
-
-```{r}
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="class2")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="class2")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class2")
-```
-
-On voit ici que les données sont bien découpées en 2 classes selon le premier axe. Cela donne une bonne confiance en le découpage en 2 classes.
-
-```{r}
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="class4")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="class4")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class4")
-```
-
-Le découpage en 4 classes se fait selon les axes 1 et 2, même si il est moins évident que celui en 2 classes. (notamment sur les classes 3 et 4 ci-dessus).
-
-```{r}
-plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="class12")
-plot(res.acp, choix="ind", axes = c(2,3), invisible="quali", habillage="class12")
-plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="class12")
-```
-
-Ici, on peut avoir la même observation que pour le découpage en 4 classes : le découpage est moins net que celui en 2 classes et se fait selon les axes 1 et 2.
-
+Les 12 groups sont visibles très clairement sur l'ACP. Ils sont très séparés selon le premier axe principal. Ainsi, les clusters sont principalement réalisés selon la forme du bâtiment (`Surface.area`, `Relative.compactness`, `Overall.height`).
 
 # Modèles linéaires
 
 ## Modèle fonction des variables quantitatives
 
-Nous étudierons dans un premier temps des modèles linéaires expliquant la variable quantitative `Energy` en fonction des variables *quantitatives* uniquement. Nous écarterons cependant la variable `Roof.area`, car nous avons vu qu'elle était combinaison linéaire des variables `Wall.area` et `Surface.area`. La conserver rendrait notre modèle singulier.
+Nous étudierons dans un premier temps des modèles linéaires expliquant la variable quantitative `Energy` en fonction des variables *quantitatives* uniquement. Comme expliqué précedement, nous écartons `Roof.area` car elle rendrait notre modèle singulier.
 
 ### Modèle avec interactions
 
-Nous essayons un premier modèle contenant les variables explicatives et leurs interactions.
+Nous construisons d'abord naïvement premier modèle contenant les variables quantitatives et leurs interactions.
 
-```{r}
+<!-- ADD A QQ-PLOT ? -->
+
+```{r, fig.dim=c(8,3)}
 model_quanti_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,quanti])
 r.sq = summary(model_quanti_complet)$r.squared ; paste("R² =", r.sq)
 data$fitted_quanti_complet = model_quanti_complet$fitted.values
