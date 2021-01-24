@@ -5,6 +5,8 @@ output:
     toc: true
     number_sections: true
     toc_depth: 3
+    includes:
+      in_header: reformat_paragraph.tex  # needed to be able to use 4th level headers
   html_document:
     df_print: paged
 toc-title: "Sommaire"
