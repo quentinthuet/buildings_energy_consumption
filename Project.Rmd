@@ -71,7 +71,7 @@ Nous allons dans un premier temps réaliser quelques statistiques exploratoires 
 ## Statistiques descriptives
 
 ```{r, echo=FALSE}
-setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
+#setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
 ```
 ```{r}
 # Lecture jeu de données, mise sous forme de facteur et corrections
@@ -724,156 +724,218 @@ modelord <- vglm(Energy.efficiency ~ Relative.compactness, data = data.mlg.p, fa
 
 # Non-linear models
 
-## Classification
-
-```{r}
+```{r, echo=F}
 prct_bien_classe=function(table){
       a =(table[1]+table[4])/sum(table)
     return(a) 
 }
 ```
 
+## Classification
+
+### Préparation des données
+
 ```{r}
 data.nlm.class = data.mlg
 
+ratio_train = 0.75
+
 # On sépare les données en un ensemble d'apprentissage et un ensemble de test
-nb_train <- floor(0.75 * nrow(data.nlm.class))
+nb_train <- floor(ratio_train * nrow(data.nlm.class))
 train_ind <- sample(seq_len(nrow(data.nlm.class)), size = nb_train)
 
-train <- data.nlm.class[train_ind, ]
-test <- data.nlm.class[-train_ind, ]
+train.dis <- data.nlm.class[train_ind, ]
+test.dis <- data.nlm.class[-train_ind, ]
 ```
+
+### Régression logistique
 
 ```{r}
 hatY = (mlg_rg$fitted.values > 0.5)
-# table de contingences pour la régression logistique
+
+# Table de contingences pour la régression logistique
 t_reg_log = table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
 t_reg_log
 ```
 ```{r}
+# Pourcentage de valeurs correctement prédites
 pct_reg_log = prct_bien_classe(t_reg_log)
 pct_reg_log
 ```
 
-```{r}
+### Arbre binaire de décision
+
+#### Version naïve (``cp`` par défaut)
+```{r, echo=F}
 library(rpart) # chargement de la librairie
 library(rpart.plot)
-tree.dis=rpart(Energy.efficiency.bis~.,data=train, parms = list(split = "information"),cp=0.001)
+```
+
+```{r}
+tree.dis=rpart(Energy.efficiency.bis~.,data=train.dis, parms = list(split = "information"),cp=0.001)
 rpart.plot(tree.dis)
 ```
 
 ```{r}
-pred.tree <- predict(tree.dis,newdata=test,type="class")
-t_class_dis = table(pred.tree, test[, "Energy.efficiency.bis"])
+pred.tree <- predict(tree.dis,newdata=test.dis,type="class")
+# Table de contingences pour l'arbre binaire de décision naïf
+t_class_dis = table(pred.tree, test.dis[, "Energy.efficiency.bis"])
 t_class_dis
 ```
+
 ```{r}
+# Pourcentage de valeurs correctement prédites
 pct_class_dis = prct_bien_classe(t_class_dis)
 pct_class_dis
 ```
 
+#### Version optimale
+
 ```{r}
+# Optimisation de cp
 xmat <- xpred.rpart(tree.dis)
 
 # Comparaison des valeurs prédite et observée
-xerr <- (train$Energy.efficiency.bis != 0) != (xmat > 1.5) 
+xerr <- (train.dis$Energy.efficiency.bis != 0) != (xmat > 1.5) 
 # Calcul  des estimations des taux d'erreur
 CVerr <- apply(xerr, 2, sum)/nrow(xerr)
 cpMin <- as.numeric(attributes(which.min(CVerr))$names)
-tree.dis.opti <- rpart(Energy.efficiency.bis~., data = train, parms = list(split = "information"), cp = cpMin)
+tree.dis.opti <- rpart(Energy.efficiency.bis~., data = train.dis, parms = list(split = "information"), cp = cpMin)
 rpart.plot(tree.dis.opti)
 ```
 
 ```{r}
-pred.tree.opti <- predict(tree.dis,newdata=test,type="class")
-t_class_dis = table(pred.tree.opti, test[, "Energy.efficiency.bis"])
+pred.tree.opti <- predict(tree.dis,newdata=test.dis,type="class")
+# Table de contingences pour l'arbre binaire de décision optimal
+t_class_dis = table(pred.tree.opti, test.dis[, "Energy.efficiency.bis"])
+t_class_dis
 ```
 ```{r}
+# Pourcentage de valeurs correctement prédites
 pct_class_dis = prct_bien_classe(t_class_dis)
 pct_class_dis
 ```
 
-```{r}
+### Random forest
+
+```{r, echo=F}
 library(randomForest)
-rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train[,c(-4,-7)], 
-                       xtest = test[, c(-4,-7,-8)], ytest = test[, "Energy.efficiency.bis"],
+```
+
+#### Version naïve (``mtry`` par défaut)
+
+```{r}
+rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train.dis[,c(-4,-7)], 
+                       xtest = test.dis[, c(-4,-7,-8)], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE)
 ```
 
 ```{r}
 pred.rf <- rf.dis$test$predicted
-table(pred.rf, test[,"Energy.efficiency.bis"])
+# Table de contingences pour la random forest naïve
+t_rdm_forest = table(pred.rf, test.dis[,"Energy.efficiency.bis"])
+t_rdm_forest
 ```
 
 ```{r}
+# Pourcentage de valeurs correctement prédites
+pct_rdm_forest = prct_bien_classe(t_rdm_forest)
+pct_rdm_forest
+```
+
+
+#### Version optimale
+
+```{r}
+# Optimisation de mtry
 library(caret)
 cvControl <- trainControl(method = "cv", number = 10)
-rfFit <- train(train[, -8], train[, 8], method = "rf", tuneLength = 8,
+rfFit <- train(train.dis[, -8], train.dis[, 8], method = "rf", tuneLength = 8,
                trControl = cvControl, trace = FALSE)
 
-rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train[,c(-4,-7)], 
-                       xtest = test[, c(-4,-7,-8)], ytest = test[, "Energy.efficiency.bis"],
+rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis[,c(-4,-7)], 
+                       xtest = test.dis[, c(-4,-7,-8)], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
+```
+
+```{r}
 pred.rf.opti <- rf.dis.opti$test$predicted
-t_arbre = table(pred.rf.opti, test[,"Energy.efficiency.bis"])
-pct_arbre = prct_bien_classe(t_arbre)
-t_arbre
+# Table de contingences pour la random forest naïve
+t_rdm_forest_opti = table(pred.rf.opti, test.dis[,"Energy.efficiency.bis"])
+t_rdm_forest_opti
+```
+
+```{r}
+# Pourcentage de valeurs correctement prédites
+pct_rdm_forest_opti = prct_bien_classe(t_rdm_forest_opti)
+pct_rdm_forest_opti
 ```
 
 ## Régression
 
-### Mise en forme des données tests et apprentissage.
+### Préparation des données
+
 ```{r}
 data.nlm.reg = new_data[,c(-4,-10)]
 
 # On sépare les données en un ensemble d'apprentissage et un ensemble de test
-nb_train <- floor(0.75 * nrow(data.nlm.reg))
+nb_train <- floor(ratio_train * nrow(data.nlm.reg))
 train_ind <- sample(seq_len(nrow(data.nlm.reg)), size = nb_train)
 
-train <- data.nlm.reg[train_ind, ]
-test <- data.nlm.reg[-train_ind, ]
+train.reg <- data.nlm.reg[train_ind, ]
+test.reg <- data.nlm.reg[-train_ind, ]
 ```
 
-### Estimation de l'arbre de régression.
-```{r}
+### Arbre de régression 
+
+```{r, echo=F}
 library(rpart) # chargement de la librairie
 library(rpart.plot)
-tree.reg=rpart(Energy ~.,data=train, cp=0.001)
+```
+
+#### Version naïve (``cp`` par défaut)
+
+```{r}
+tree.reg=rpart(Energy ~.,data=train.reg, cp=0.001)
 rpart.plot(tree.reg)
 ```
 
-
 ```{r}
-plot(tree.reg)
-text(tree.reg)
+pred.tree <- predict(tree.reg,newdata=test.reg)
+# Table de contingences pour l'arbre binaire de décision naïf
+t_class_reg = table(pred.tree > 35, test.reg[, "Energy"] > 35)
+t_class_reg
 ```
 
-### Elagage de l'abre de régression.
+```{r}
+# Pourcentage de valeurs correctement prédites
+pct_class_reg = prct_bien_classe(t_class_reg)
+pct_class_reg
+```
+
+#### Version optimale 
+
 ```{r}
 xmat <- xpred.rpart(tree.reg)
-xerr <- (xmat-train[,"Energy"])^2
+xerr <- (xmat-train.reg[,"Energy"])^2
 CVerr <- apply(xerr, 2, sum)
 ```
 
-### Construction de l'arbre avec cp minimisant l'erreur
-Pour cela, nous allons rechercher le cp qui minimiser l'erreur.
 ```{r}
+# On cherche la valeur de cp qui minimise l'erreur
 cpMin <- as.numeric(attributes(which.min(CVerr))$names)
-tree.reg <- rpart(Energy~., data = train, control = rpart.control(cp = cpMin))
-#library(partykit)
-#plot(as.party(tree.dis.reg), type = "simple")
+tree.reg <- rpart(Energy~., data = train.reg, control = rpart.control(cp = cpMin))
 ```
 
-### Construction de l'arbre prédit par régression sur l'ensemble test
 ```{r}
-pred.treer <- predict(tree.reg,newdata=test)
+pred.treer <- predict(tree.reg,newdata=test.reg)
+# Table de contingences pour l'arbre binaire de décision naïf
+t_reg = table(pred.treer > 35, test.reg[, "Energy"] > 35)
+t_reg
 ```
 
-### Table de contingences
 ```{r}
-t_reg = table(pred.treer > 35, test[, "Energy"] > 35)
-```
-```{r}
+# Pourcentage de valeurs correctement prédites
 pct_reg = prct_bien_classe(t_reg)
 pct_reg
 ```
