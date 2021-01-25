@@ -32,6 +32,16 @@ library(bestglm)
 library(plotly)
 library(caret)
 library(factoextra)
+# function used to break lines in the pdf outputs
+# https://stackoverflow.com/questions/24020617/textwrapping-long-string-in-knitr-output-rstudio
+str_break = function(x, width = 80L) {
+  n = nchar(x)
+  if (n <= width) return(x)
+  n1 = seq(1L, n, by = width)
+  n2 = seq(width, n, by = width)
+  if (n %% width != 0) n2 = c(n2, n)
+  substring(x, n1, n2)
+}
 ```
 
 # Introduction et présentation du jeu de données
@@ -72,9 +82,6 @@ Nous allons dans un premier temps réaliser quelques statistiques exploratoires 
 
 ## Statistiques descriptives
 
-```{r, echo=FALSE}
-#setwd("/home/leo/GoogleDrive/Cours/INSA_4A/Projet")
-```
 ```{r}
 # Lecture jeu de données, mise sous forme de facteur et corrections
 data = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
@@ -160,7 +167,6 @@ fonctions nécessaires à la réalisation de notre ACP.
 On cherche d'abord combien d'axes principaux nous allons avoir besoin.
 
 ```{r, fig.dim=c(8,3.5)}
-library("FactoMineR")
 par(mfrow=c(1,2))
 res.acp <- PCA(data,scale.unit=T,quali.sup=quali,quanti.sup=9,ncp=8, graph=F)
 barplot(res.acp$eig[,"percentage of variance"], main="Pourcentage de variance",
@@ -178,14 +184,10 @@ On voit sur le premier graphe que l'inertie portée par les trois premiers axes 
 Les graphes des variables nous donnent des informations intéressantes sur les variables corrélées.
 
 ```{r, fig.dim=c(6,6)}
-
 layout_matrix = matrix(c(1,2,3,3), 2, 2, byrow = TRUE)
-gg1 = plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = FALSE,
-               title = "Variables (axes 1/2)")
-gg2 = plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = FALSE,
-               title = "Variables (axes 1/3)")
-gg3 = plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = FALSE,
-               title = "Variables (axes 2/3)")
+gg1 = plot.PCA(res.acp, choix="var", axes = c(1,2), new.plot = F,title = "Variables (axes 1/2)")
+gg2 = plot.PCA(res.acp, choix="var", axes = c(1,3), new.plot = F,title = "Variables (axes 1/3)")
+gg3 = plot.PCA(res.acp, choix="var", axes = c(2,3), new.plot = F,title = "Variables (axes 2/3)")
 grid.arrange(gg1,gg2,gg3,layout_matrix=layout_matrix)
 ```
 
@@ -201,15 +203,13 @@ Nous pouvons également observer les graphes des individus. Nous représentons l
 
 
 ```{r, fig.dim=c(7,4)}
-gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
-           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8), legend.position="none")
-gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali",
-           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8), legend.position="none")
-gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali",
-           habillage="Energy.efficiency", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8)) + guides(color=guide_legend(ncol=2))
+gg1 = plot(res.acp,choix="ind",axes = c(1,2),invisible="quali",habillage="Energy.efficiency",
+           label="none", new.plot=F) + theme(text=element_text(size=8),legend.position="none")
+gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali",habillage="Energy.efficiency",
+           label="none", new.plot=F) + theme(text=element_text(size=8), legend.position="none")
+gg3 = plot(res.acp, choix="ind",axes = c(1,3),invisible="quali",habillage="Energy.efficiency",
+           label="none", new.plot=F) + theme(text=element_text(size=8)) +
+  guides(color=guide_legend(ncol=2))
 grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 ```
 
@@ -218,12 +218,10 @@ On peut voir sur le premier et le troisième graphique que l'axe 1 marque une cl
 Les bâtiments à la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ils sont plus bas et plus compacts, comme on peut le voir sur les graphiques suivants :
 
 ```{r, fig.dim=c(7,3)}
-gg1 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
-           habillage="Relative.compactness", label = "none", new.plot = FALSE) +
-  theme(text = element_text(size=8))
-gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali",
-           habillage="Overall.height", label = "none") +
-  theme(text = element_text(size=8))
+gg1 = plot(res.acp,choix="ind",axes = c(1,2),invisible="quali",habillage="Relative.compactness",
+           label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
+gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Overall.height",
+           label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
 grid.arrange(gg1,gg2,ncol=2)
 ```
 
@@ -240,11 +238,9 @@ Nous menons d'abord une analyse visuelle au sein de nos différentes variables
 afin de mettre en évidence de potentiels groupes.
 
 ```{r, fig.dim=c(6,3)}
-gg1 = ggplot(data) +
-  aes(x = Relative.compactness, y = Energy) +
+gg1 = ggplot(data) + aes(x = Relative.compactness, y = Energy) +
   geom_point() + theme_minimal()
-gg2 = ggplot(data) +
-  aes(x = Glazing.area, y = Energy) +
+gg2 = ggplot(data) + aes(x = Glazing.area, y = Energy) +
   geom_point() + theme_minimal()
 grid.arrange(gg1,gg2,ncol=2)
 ```
@@ -260,22 +256,15 @@ Avec la surface vitrée, on distingue principalement quatre groupes avec deux so
 
 Après cette analyse visuelle, nous allons utiliser des méthodes de clustering pour confirmer ou infirmer nos observations. Commençons par le clustering hiérarchique.
 
+<!-- POURQUOI LIGNES ROUGES ? -->
+
 ```{r, fig.dim=c(6,3.5), fig.show='hold'}
-par(mfrow=c(1,2))
-par(mar = c(4,4,2,1))
+par(mfrow=c(1,2), mar = c(4,4,2,1))
 hc = hclust(dist(data[c(1,2,3,4,5,7)]), method = "ward.D2")
 plot(hc, xlab = "")
-abline(h=3400,col="red")
-abline(h=1300,col="red")
-abline(h=880,col="red")
-abline(h=200,col="red")
-# par(mar = c(4,4,4,0))
-plot(sort(hc$height, decreasing = TRUE)[1:20],
-     ylab = "Variance inter-classe")
-abline(v=1.5,col="red")
-abline(v=3.5,col="red")
-abline(v=4.5,col="red")
-abline(v=11.5,col="red")
+abline(h=c(3400,1300,880,200),col="red")
+plot(sort(hc$height, decreasing = TRUE)[1:20], ylab = "Variance inter-classe")
+abline(v=c(1.5,3.5,4.5,11.5),col="red")
 ```
 Sur le dendogramme, deux classes apparaissent clairement. On peut aussi distinguer 4,5 ou 12 classes.
 Sur le graphique de la variance inter-classe, on observe un saut important au passage à 2 classes. On retrouve également les résultats que l'on a obtenu avec le dendogramme en observant des sauts aux passages à 4, 5 et 12 classes.
@@ -285,31 +274,23 @@ Ces premiers outils semblent confirmer les nombres de classes qui semblent perti
 On réalise donc dans un premier temps un découpage en 2, 4 et 12 classes selon le clustering hiérarchique. On superpose ensuite ces classes sur nos graphes précédents.
 
 ```{r, fig.height=2.5}
-class2 = cutree(hc, k = 2)
-gg1 = ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = class2) +
- theme_minimal()
-class4 = cutree(hc, k = 4)
-gg2 = ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = class4) +
- theme_minimal()
-class12 = cutree(hc, k = 12)
-gg3 = ggplot(data) +
- aes(x = Relative.compactness, y = Energy) +
- geom_point(size = 1L, colour = class12) +
- theme_minimal()
+class2 = cutree(hc, k = 2)   # clustering hiérarchique à 2 classes
+class4 = cutree(hc, k = 4)   # clustering hiérarchique à 4 classes
+class12 = cutree(hc, k = 12) # clustering hiérarchique à 12 classes
+gg1 = ggplot(data) + aes(x = Relative.compactness, y = Energy) +
+ geom_point(size = 1L, colour = class2) + theme_minimal()
+gg2 = ggplot(data) + aes(x = Relative.compactness, y = Energy) +
+ geom_point(size = 1L, colour = class4) + theme_minimal()
+gg3 = ggplot(data) + aes(x = Relative.compactness, y = Energy) +
+ geom_point(size = 1L, colour = class12) + theme_minimal()
 grid.arrange(gg1,gg2,gg3,ncol=3)
 ```
 
 En regardant la compacité relative, les découpages en 2 et 12 classes semblent très pertinents. Celui en 4 classe l'est moins. On peut un peu mieux voir la séparation des 4 classes en regardant la surface murée ci-dessous. On aurait tout de même envie de découper en plus de classes dans ce graphique.
 
-```{r, fig.dim=c(4,3)}
-ggplot(data) +
- aes(x = Wall.area, y = Energy) +
- geom_point(size = 1L, colour = class4) +
- theme_minimal()
+```{r, fig.dim=c(3.5,2.3)}
+ggplot(data) + aes(x = Wall.area, y = Energy) +
+ geom_point(size = 0.7, colour = class4) + theme_minimal()
 ```
 
 Le découpage en 2 classes semble très marqué, nous aimerions savoir si il n'est pas lié à la seule variable à deux modalités de notre jeu de donnée : la hauteur du batiment.
@@ -326,64 +307,49 @@ On utilise à présent un nouvel outil : les k-means. Nous souhaitons le compare
 au clustering hiérarchique.
 
 ```{r}
-# k-means à 2 classes
 set.seed(42)
-kmres2 = kmeans(data[,c(1:5,7)], centers = 2)
-kmclus2 = kmres2$cluster
+kmres2 = kmeans(data[,c(1:5,7)], centers = 2) # k-means à 2 classes
 table(kmres2$cluster, data$Overall.height)
 ```
 Pour deux classes, les deux méthodes fournissent exactement la même découpe : selon la hauteur.
 
-```{r}
-# k-means à 4 classes
+```{r, fig.height=2}
 set.seed(42)
-kmres4 = kmeans(data[,c(1:5,7)], centers = 4)
+kmres4 = kmeans(data[,c(1:5,7)], centers = 4) # k-means à 4 classes
 kmclus4 = kmres4$cluster
-
-ggplot(data) +
-  aes(x = Wall.area, y = Energy,
-      colour = as.factor(kmclus4), shape = as.factor(class4)) +
-  scale_shape_manual(values=1:nlevels(as.factor(class4))) +
-  labs(color = "K-means", shape = "Clustering hiérarchique") +
-  geom_point(size = 2) +
-  theme_minimal()
-```
-
-Après plusieurs exécutions, les k-means ne donne presque jamais le même résultat que le clustering hiérarchique pour 4 classes. Ils réalisent souvent un découpage moins pertinent dans la surface des murs.
-
-```{r}
-# k-means à 12 classes
-set.seed(42)
-kmres12 = kmeans(data[,c(1:5,7)], centers = 12)
+kmres12 = kmeans(data[,c(1:5,7)], centers = 12) # k-means à 12 classes
 kmclus12 = kmres12$cluster
-
-ggplot(data) +
-  aes(x = Wall.area, y = Energy, color = as.factor(kmclus12), shape = as.factor(class12)) +
-  scale_shape_manual(values=1:nlevels(as.factor(class12))) +
-  geom_point(size = 2) +
-  labs(color = "K-means", shape = "Clustering hiérarchique") +
-  theme_minimal() +
-  guides(color=guide_legend(ncol=3), shape=guide_legend(ncol=3))
+gg1 = ggplot(data) + aes(x = Wall.area, y = Energy) +
+  geom_point(size = 0.5, aes(color = as.factor(kmclus4))) +
+  stat_ellipse(aes(group = as.factor(class4))) +
+  theme_minimal() + theme(legend.position = "none")
+gg2 = ggplot(data) + aes(x = Relative.compactness, y = Energy) +
+  geom_point(size = 0.5, aes(color = as.factor(kmclus12))) +
+  stat_ellipse(aes(group = as.factor(class12))) +
+  theme_minimal() + theme(legend.position = "none")
+grid.arrange(gg1,gg2,ncol=2)
 ```
 
-C'est assez dur à visualiser graphiquement à cause du nombre de classes, mais les k-means donnent ici des résultats plus proches du clustering hiérarchique. Les séparations dépendent toutefois des executions, et semblent globalement un peu moins bien définies.
+Ces deux graphes représentent les découpes obtenues par les k-means (points colorés) et par le clustering hiérarchique (ellipses noires) pour 4 et 12 classes, selon deux variables choisies pour bien représenter la découpe.
+
+Après plusieurs exécutions pour 4 classes, les k-means ne donnent presque jamais les mêmes résultats que le clustering hiérarchique (ellipses noires). Les clusters semblent souvent un peu moins pertinents (par exemple le groupe en haut à droite classé avec le groupe du milieu, assez éloigné).
+
+Pour 12 classes, ils donnent des résultats plus proches du clustering hiérarchique. Les séparations dépendent toutefois des exécutions, et semblent globalement un peu moins bien définies qu'avec le clustering hiérarchique.
 
 ### Visualisation des classes sur les axes de l'ACP
 
 On va essayer de projeter les classes obtenues par clustering sur l'ACP afin de voir si les découpages sont pertinents. Nous utilisons les classes obtenues par clustering hiérarchiques car celles-ci nous semblaient plus naturelles visuellement.
 
-```{r}
-data_classes = data
-data_classes$class2 = as.factor(class2)
-data_classes$class4 = as.factor(class4)
-data_classes$class12 = as.factor(class12)
+```{r, fig.height=2.8}
+data_classes = data ; data_classes$class2 = as.factor(class2)
+data_classes$class4 = as.factor(class4) ; data_classes$class12 = as.factor(class12)
 res.acp_classes=PCA(data_classes,scale.unit=T,quali.sup=c(quali,11,12,13),quanti.sup=9,graph=F)
 gg1 = fviz_pca_ind(res.acp_classes, c(1,2), habillage="class12", labels = F)
 gg2 = fviz_pca_ind(res.acp_classes, c(1,3), habillage="class12", labels = F)
 grid.arrange(gg1+theme(legend.position="none"),gg2+theme(legend.position="none"),ncol=2)
 ```
 
-Les 12 groups sont visibles très clairement sur l'ACP. Ils sont très séparés selon le premier axe principal. Ainsi, les clusters sont principalement réalisés selon la forme du bâtiment (`Surface.area`, `Relative.compactness`, `Overall.height`).
+Les 12 groups sont visibles clairement sur l'ACP. Ils sont bien séparés selon le premier axe principal. Ainsi, les clusters sont principalement réalisés selon la forme du bâtiment (`Surface.area`, `Relative.compactness`, `Overall.height`).
 
 # Modèles linéaires
 
@@ -395,22 +361,21 @@ Nous étudierons dans un premier temps des modèles linéaires expliquant la var
 
 Nous construisons d'abord naïvement premier modèle contenant les variables quantitatives et leurs interactions.
 
-<!-- ADD A QQ-PLOT ? -->
+<!-- QQ-PLOT ? -->
 
 ```{r, fig.dim=c(8,3)}
 model_quanti_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,quanti])
-r.sq = summary(model_quanti_complet)$r.squared ; paste("R² =", r.sq)
+paste("R² =",summary(model_quanti_complet)$r.squared)
 data$fitted_quanti_complet = model_quanti_complet$fitted.values
 ggplot(data) + 
   aes(x = fitted_quanti_complet, y = Energy) +
-  geom_point(size = 1L) + 
-  geom_abline(slope = 1) +
+  geom_point() + geom_abline(slope = 1) +
   labs(title = "Regression linéaire de `Energy` en fonction des variables quantitatives",
        x = "Valeurs ajustées") +
   theme_minimal()
 ```
 
-Le modèle obtenu semble déjà bien passer au sein des données : on trouve un $R^2$ de 0.8952.
+Le modèle obtenu semble bien passer au sein des données : on trouve un $R^2$ de 0.8692.
 
 Cependant, ce modèle conserve beaucoup de variables, on peut donc se demander si elles sont toutes pertinentes. Nous allons donc essayer ne n'en conserver que certaines.
 
@@ -419,19 +384,21 @@ Cependant, ce modèle conserve beaucoup de variables, on peut donc se demander s
 Nous allons réaliser dans un premier temps une sélection de variables par critère BIC.
 
 ```{r}
-modselect_quanti_bic_back = stepAIC(model_quanti_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)),)
-paste("Energy ~", paste(dimnames(modselect_quanti_bic_back$qr$qr)[[2]][-1], collapse=" + "))
+modselect_quanti_bic_back = stepAIC(model_quanti_complet,trace=FALSE,
+                                    direction=c("backward"),k=log(nrow(data)))
+f = paste("Energy ~", paste(dimnames(modselect_quanti_bic_back$qr$qr)[[2]][-1], collapse=" + "))
+str_break(f)  # pour autoriser des retours à la ligne dans la sortie
 ```
 
 Le modèle selectionné conserve nos 5 des variables quantitatives, mais supprime certaines de de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
 
 ```{r}
 anova(modselect_quanti_bic_back, model_quanti_complet)
-r.sq = summary(modselect_quanti_bic_back)$r.squared ; paste("R² =", r.sq)
+paste("R² =", summary(modselect_quanti_bic_back)$r.squared)
 ```
 
-On obtient une p-valeur de 0.2864. On ne rejette donc pas notre modèle selectionné au seuil de 5 \%.
-Ainsi, notre modèle possède un $R^2$ de 0.8943, ce qui est à peine plus faible que ce que nous avions avec toutes nos variables.
+On obtient une p-valeur de 0.1477. On ne rejette donc pas notre modèle selectionné au seuil de 5 \%.
+Ainsi, notre modèle réduit possède un $R^2$ de 0.8685, ce qui est à peine plus faible que ce que nous avions avec toutes nos variables (0.8692).
 
 ### Selection de variable par regression regularisée
 
@@ -439,12 +406,9 @@ On peut également tenter de sélectionner nos variables par régression régula
 Nous nous contenterons d'étudier le modèle sans interactions car la fonction que nous utiliserons ne traite pas de priorisation entre les effets principaux et les interactions.
 
 ```{r}
-# centrage et réduction des données
+# centrage et reduction des données
 energy = scale(data["Energy"],center=T,scale=T)
-# f = as.formula(paste("Energy ~ (", paste(dimnames(data[,c(1,2,3,7)])[[2]], collapse=" + "), ")^2"))
-# expli = scale(model.matrix(f,data)[,-1],center=T,scale=T)
 expli = scale(data[quanti[-6]],center=T,scale=T)
-
 # création du tableau de tau
 tau_seq <- seq(0, 0.1, by = 0.0001)
 ```
@@ -452,7 +416,7 @@ tau_seq <- seq(0, 0.1, by = 0.0001)
 
 #### Ridge
 
-```{r, eval=FALSE}
+```{r, eval=FALSE, include=F}
 fitridge <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 0, lambda = tau_seq, intercept = F)
 
 # récupération du tau minimum par validation croisée
@@ -470,7 +434,7 @@ ggplot(dfridge,aes(x=tau,y=theta,col=variable)) +
   theme(legend.position="right")
 ```
 
-```{r, eval=FALSE}
+```{r, eval=FALSE, include=F}
 # illustration de la meilleure valeur de tau
 df2=data.frame(tau=ridge_cv$lambda,MSE=ridge_cv$cvm,cvup=ridge_cv$cvup,cvlo=ridge_cv$cvlo)
 ggplot(df2)+
@@ -480,22 +444,22 @@ ggplot(df2)+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
-La régression Ridge ne nous donne pas vraiment de résultats intéressant, il est difficile de voir clairement quelles variables écarter. Nous allons donc essayer une régression lasso.
+Nous avons vu que la régression Ridge ne nous donnait pas de résultats très intéressants, il était difficile de voir clairement quelles variables écarter. Nous ne nous attarderons donc pas plus en détails dessus, et nous allons essayer une régression lasso, qui permet d'écarter plus facilement des variables.
 
 #### Lasso
 
 ```{r}
-fitlasso <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
-dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)),
-                   theta=as.vector(t(fitlasso$beta)),
-                   variable=rep(colnames(expli),each=length(fitlasso$lambda)))
+fitlasso <- glmnet(x = expli, y = energy, family = "gaussian", alpha = 1,
+                   lambda = tau_seq, intercept = F)
+dflasso=data.frame(tau = rep(fitlasso$lambda,ncol(expli)), theta=as.vector(t(fitlasso$beta)),
+                   variable=rep(colnames(expli), each=length(fitlasso$lambda)))
 ggplot(dflasso,aes(x=tau,y=theta,col=variable)) +
   geom_line() +
   geom_vline(xintercept = 0.02, linetype = "dotted", color = "red") +
   theme(legend.position="right")
 ```
 
-```{r, eval=FALSE}
+```{r, eval=FALSE, include=F}
 # récupération du tau minimum par validation croisée
 lasso_cv = cv.glmnet(x = expli, y = energy, family = "gaussian", alpha = 1, lambda = tau_seq, intercept = F)
 tau_min_lasso = lasso_cv$lambda.min
@@ -509,40 +473,64 @@ ggplot(df3)+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
-Certains variables s'écrasent bien à 0. En choisissant un seuil de 0.02, la régularisation écarterait les variables `Surface.area` et `Relative.compactness`. Cependant ce seuil est arbitraire. En essayant de le choisir par validation croisée pour minimiser le critère MSE, nous trouvons 0. Cela signifierait qu'il faudrait conserver toutes les variables. Cela serait cohérent avec les résultats de la sélection par critère BIC, qui conservait toutes les variables (plus certaines interactions). Le fait de ne pas pouvoir tester les interactions nous limite sur les conclusions que nous pouvons tirer des régression régularisées.
+Certains variables s'écrasent bien à 0. En choisissant un seuil de 0.02, la régularisation écarterait les variables `Surface.area` et `Relative.compactness` (comme nous avons vu dans la partie 1, ces deux variables sont très liées). Cependant ce seuil est arbitraire. En essayant de le choisir par validation croisée pour minimiser le critère MSE, nous trouvons 0. Nous devrions donc conserver toutes nos variables. Cela serait cohérent avec les résultats de la sélection par critère BIC, qui conservait toutes les variables (plus certaines interactions). Le fait de ne pas pouvoir tester les interactions nous limite sur les conclusions que nous pouvons tirer des régressions régularisées.
 
-Nous n'avons jusqu'à présent considéré que les variables quantitatives. Nous allons maintenant essayer de voir si les variables qualitatives de notre jeu de données ne pourraient pas nous apporter des informations supplémentaires.
+Ainsi le modèle issu de la sélection BIC semble un bon premier candidat pour notre modèle final. Cependant, nous n'avons traité pour le moment que des variables quantitatives. Nous allons donc maintenant essayer de voir si les variables qualitatives de notre jeu de données ne pourraient pas nous apporter des informations supplémentaires.
 
-## Modèle délendant de toutes les variables
+## Modèle dépendant de toutes les variables
 
 On construit un modèle complet avec interactions, et on teste un sous-modèle sans interactions pour voir si on pourrait s'en passer.
 
 ```{r}
-model_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,c(1:9)])
+model_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,allvariables[-10]])
 data$fitted_complet = model_complet$fitted.values
-model_no_interactions = lm(Energy ~ . - Roof.area, data = data[,c(1:9)])
+model_no_interactions = lm(Energy ~ . - Roof.area, data = data[,allvariables[-10]])
 anova(model_complet, model_no_interactions)
 ```
 
-La p-valeur est très faible : on doit conserver des interactions. Nous allons essayer de voir si nous ne pourrions pas nous en passer de certaines grâce à un algorithme de sélection de variables.
+La p-valeur est très faible : on doit conserver des interactions. De la même manière que précédemment, nous allons essayer un algorithme de sélection de variables par critère BIC pour faire le tri dans ce qui est utile ou pas.
 
 ```{r}
-modselect_bic_back = stepAIC(model_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)))
-formula = paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + ")) ; formula
+modselect_bic_back=stepAIC(model_complet,trace=FALSE,direction=c("backward"),k=log(nrow(data)))
+f = paste("Energy ~", paste(dimnames(modselect_bic_back$qr$qr)[[2]][-1], collapse=" + "))
+str_break(f)
 ```
 
-Ainsi la sélection laisse complètement de côté la variable `orientation`, et supprime également certaines interactions. On réalise un test de sous-modèle afin de savoir si nous pouvons simplifier le modèle complet.
+Ainsi la sélection laisse complètement de côté la variable `orientation`, et supprime également certaines interactions. D'après notre analyse exploratoire en première partie, le retrait de cette variable n'est pas étonnant : elle semblait n'avoir aucun impact sur la consommation d'énergie.
+
+On réalise un test de sous-modèle afin de vérifier que nous pouvons bien simplifier le modèle complet.
 
 ```{r}
 anova(modselect_bic_back, model_complet)
-summary(modselect_bic_back)
 ```
 
-On obtient une p-valeur supérieure à 99\%, on ne rejette donc pas le modèle réduit, et on peut simplifier le modèle.
+On obtient une p-valeur supérieure à 99\%, on ne rejette donc pas le modèle réduit.
+
+Ainsi, le modèle linéaire final que nous conservons est de la forme :
+$$
+\begin{aligned}
+  Energy_i &= \theta_0 + \theta_1 Relative.compactness_i + \theta_2Surface.area_i + \theta_3 Wall.area_i \\
+  &+ \theta_4 \mathbb{I}_{Overall.height_i = 7} + \theta_5 Glazing.area_i \\
+  &+ \theta_{6,1} \mathbb{I}_{Glazing.area.distr_i = 1} + \theta_{6,2} \mathbb{I}_{Glazing.area.distr_i = 2} + \theta_{6,3} \mathbb{I}_{Glazing.area.distr_i = 3} \\
+  &+ \theta_{6,4} \mathbb{I}_{Glazing.area.distr_i = 4} + \theta_{6,5} \mathbb{I}_{Glazing.area.distr_i = 5} \\
+  &+ \gamma_1 Relative.compactness_i \times Surface.area_i + \gamma_2 Relative.compactness_i \times Wall.area_i \\
+  &+ \gamma_3 Relative.compactness_i \times \mathbb{I}_{Overall.height_i = 7} + \gamma_4 Relative.compactness_i \times Glazing.area_i \\
+  &+ \gamma_5 Surface.area_i \times \mathbb{I}_{Overall.height_i = 7} + \gamma_6 Wall.area_i \times \mathbb{I}_{Overall.height_i = 7} \\
+  &+ \gamma_7 Wall.area_i \times Glazing.area_i + \varepsilon_i
+\end{aligned}
+$$
+
+avec $\varepsilon_i \sim \mathcal{N}(0,\sigma^2)$. Pour vérifier cette dernière condition, on peut tracer les graphes des résidus :
+
+```{r}
+par(mfrow=c(1,2)) ; plot(modselect_bic_back, which=c(1,2), pch="+", cex=0.6)
+```
+
+Les graphes ne semblent pas trop mal, il semble toutefois que la variance des résidus correspondant aux hautes valeurs ajustées sont plus élevé que celle des plus faibles. Il y a également un décrochage du QQ-plot en bas à gauche. Ces résultats laissent penser que l'hypothèse de la normalité des résidus n'est pas vraiment vérifiée. Nous allons tout de même tester le pouvoir de prédiction de ce modèle, puis nous essaierons une approche par modèle linéaire généralisé pour voir si nous trouvons de meilleur résultats.
 
 ## Pouvoir de prédiction du modèle
 
-Maintenant qu'on a déterminé les variables d'intérêt, nous allons tester le pouvoir de prédiction de notre modèle. Pour cela, nous allons faire de la validation croisée.
+Maintenant qu'on a déterminé les variables d'intérêt, nous allons tester le pouvoir de prédiction de notre modèle. Pour cela, nous allons faire de la validation croisée. 
 
 ```{r}
 set.seed(42)
@@ -552,6 +540,7 @@ print(model_cv)
 ```
 
 On obtient un $R^2$ de presque 90\%, le modèle passe donc bien par les données. De plus, l'erreur moyenne absolue de moins de 5. En sachant que la variable `Energy` s'étale de 10 à 95, notre erreur est assez faible : elle représente moins de 6\% de l'étendue de nos données.
+
 
 # Modèle linéaire généralisée
 
