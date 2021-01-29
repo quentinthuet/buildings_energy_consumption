@@ -829,7 +829,6 @@ pct_rdm_nai_dis
 
 ```{r}
 # Optimisation de mtry
-library(caret)
 cvControl <- trainControl(method = "cv", number = 10)
 rfFit <- train(train.dis[, -8], train.dis[, 8], method = "rf", tuneLength = 8,
                trControl = cvControl, trace = FALSE)
@@ -839,12 +838,10 @@ rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis,
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
 ```
 
-```{r}
-round(importance(rf.dis.opti),2)
+```{r, fig.dim=c(8,4)}
+varImpPlot(rf.dis.opti)
 ```
-```{r}
 
-```
 ```{r}
 pred.rf.opti <- rf.dis.opti$test$predicted
 # Table de contingences pour la random forest naïve
@@ -995,6 +992,7 @@ df.summarize
 ## Comparaison classification directe et régression à seuil
 
 On a cherché à répartir les données en deux classes :
+
 * ``Energy.efficiency = A,B`` (ou ``Energy <= 35`` )
 * ``Energy.efficiency = C,D,E,F,G`` (ou ``Energy > 35``)
 
@@ -1006,16 +1004,18 @@ On observe en effet la très bonne répartition des bâtiments en deux classes �
 
 Dans le cadre de la régression logistique, les variables suivantes nous semblaient être les plus influentes : 
 
-* Relative.compactness
-* Glazing.area
-* Overall.height
-* Glazing.area.dist
+* `Relative.compactness`
+* `Glazing.area`
+* `Overall.height`
+* `Glazing.area.dist`
 
 Si l'on revient à l'analyse de données, et plus particulièrement à l'ACP, les variables suivantes contribuaient le plus : 
 
-* Axe 1 (56%) : Relative.compactness, Surface.area, Roof.area. Sachant que Relative.compactness dépend de Surface.area et Roof.area, il est cohérent de ne retrouver que la Relative.compactness dans la sélection de variable.
-* Axe 2 (23%) : Wall.area. Cette variable se retrouve également dans la Relative.compactness.
-* Axe 3 (20%) : Glazing.area. Cette variable apporte une contribution relativement importante et n'est pas liée à la Relative.compactness, il est donc logique de la conserver.
+* Axe 1 (56%) : `Relative.compactness`, `Surface.area`, `Roof.area`. Sachant que `Relative.compactness` dépend de `Surface.area` et `Roof.area`, il est cohérent de ne retrouver que la `Relative.compactness` dans la sélection de variable.
+* Axe 2 (23%) : `Wall.area`. Cette variable se retrouve également dans la `Relative.compactness`.
+* Axe 3 (20%) : `Glazing.area`. Cette variable apporte une contribution relativement importante et n'est pas liée à la `Relative.compactness`, il est donc logique de la conserver.
 
-On avait également remarqué que l'ACP différenciait bien les données selon leur Overall.height.
-Quant à la Glazing.area.dist, nous n'avions pas remarqué d'influence particulière de cette variable.
+On avait également remarqué que l'ACP différenciait bien les données selon leur `Overall.height`.
+Quant à la `Glazing.area.dist`, nous n'avions pas remarqué d'influence particulière de cette variable.
+
+D'après le graphique de l'importance des variables de la Random Forest, on retrouve la même hiérarchisation de la contribution des variables, à savoir Wall.area (deuxième axe de l'ACP), Surface.area et Relative.compactness (premier axe de l'ACP), puis Glazing.area (troisième axe de l'ACP).
