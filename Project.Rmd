@@ -1,5 +1,8 @@
 ---
-title: "Projet de statistiques : prédiction de la consommation énergétique de bâtiments"
+title: "Projet de statistiques et d'analyse de données"
+subtitle: "Prédiction de la consommation énergétique de bâtiments"
+author: "CAMARA Ababacar, GÉRÉ Léo, THUET Quentin"
+date: "29/01/2021"
 output:
   pdf_document:
     toc: true
@@ -32,6 +35,10 @@ library(bestglm)
 library(plotly)
 library(caret)
 library(factoextra)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(boot)
 # function used to break lines in the pdf outputs
 # https://stackoverflow.com/questions/24020617/textwrapping-long-string-in-knitr-output-rstudio
 str_break = function(x, width = 80L) {
@@ -533,8 +540,6 @@ Il semble que la variance des résidus correspondant aux hautes valeurs ajustée
 
 ## Pouvoir de prédiction du modèle
 
-### Validation croisée
-
 Maintenant qu'on a déterminé les variables d'intérêt, nous allons tester le pouvoir de prédiction de notre modèle. Pour cela, nous allons faire de la validation croisée. 
 
 ```{r}
@@ -545,15 +550,6 @@ print(model_cv)
 ```
 
 On obtient un $R^2$ de presque 90\%, le modèle passe donc bien par les données. De plus, l'erreur moyenne absolue de moins de 5. En sachant que la variable `Energy` s'étale de 10 à 95, notre erreur est assez faible : elle représente moins de 6\% de l'étendue de nos données.
-
-```{r}
-# On réalise un jeu de test et un jeu d'entrainement qui nous servirons tout le long de notre étude (voir conclusion)
-ratio_train = 0.75
-set.seed(1999)
-nb_train <- floor(ratio_train * nrow(data))
-train_ind <- sample(seq_len(nrow(data)), size = nb_train)
-final_linear_model = lm(modselect_bic_back$terms, data = data[train_ind,])
-```
 
 # Modèle linéaire généralisé
 
@@ -571,7 +567,7 @@ data.mlg$Energy.efficiency.bis[which(!is.element(data$Energy.efficiency, c("A","
 data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
 ```
 
-### Statistique descriptive 
+### Statistiques descriptives
 
 ```{r, fig.dim=c(8,4), echo=F}
 par(mfrow=c(2,2), mai=c(1,1,0.1,0))
@@ -596,7 +592,7 @@ mlg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link="logit"))
 pseudoR2 = 1 - (mlg$deviance/mlg$null.deviance) ; print(paste("Pseudo R² :",pseudoR2))
 ```
 
-On trouve un pseudo $R^2$ de 0.71, ce qui n'est pas trop mal. Nous allons voir si nous pouvons le simplifier en recherchant un sous-modèle. Pour allons réaliser des sélections par critères BIC et AIC à l'aide de la fonction `bestglm`.
+On trouve un pseudo $R^2$ de 0.71, ce qui n'est pas trop mal. Nous allons voir si nous pouvons le simplifier en recherchant un sous-modèle. Pour cela allons réaliser des sélections par critères BIC et AIC à l'aide de la fonction `bestglm`.
 
 #### Recherche de sous modèle
 
@@ -619,7 +615,7 @@ mlg_best_bic <- glm(Energy.efficiency.bis ~ Relative.compactness + Overall.heigh
 anova(mlg_best_bic,mlg,test="Chisq")
 ```
 
-La p-valeur obtenue est de 0.003229, donc on rejette le sous modèle BIC au risque de 1\%.
+La p-valeur obtenue est de 0.003229, donc on rejette le sous modèle BIC au risque de 5\%.
 
 #### Test du sous-modèle AIC
 ```{r, echo=F, eval=T}
@@ -631,15 +627,7 @@ La p-valeur obtenue étant de 0.5543 on retient le modèle AIC au risque 5\%.
 
 #### Modèle sélectionné
 
-Ainsi nous retenons le modèle AIC :
-$$
-\begin{aligned}
-  Energy_i &= \theta_0 + \theta_1 Relative.compactness_i + \theta_2 Glazing.area_i \\
-  &+ \theta_3 \mathbb{I}_{Overall.height_i = 7} + \theta_{4,1} \mathbb{I}_{Glazing.area.distr_i = 1} + \\
-  &+ \theta_{4,2} \mathbb{I}_{Glazing.area.distr_i = 2} + \theta_{4,3} \mathbb{I}_{Glazing.area.distr_i = 3} \\
-  &+ \theta_{4,4} \mathbb{I}_{Glazing.area.distr_i = 4} + \theta_{4,5} \mathbb{I}_{Glazing.area.distr_i = 5}
-\end{aligned}
-$$
+Ainsi nous retenons donc pour l'instant le modèle AIC.
 
 ### Modèle avec interactions
 
@@ -654,9 +642,9 @@ mlg_inter = glm(Energy.efficiency.bis~.+Relative.compactness:Surface.area+
 # summary(mlg_inter)
 pseudoR2 = 1-(mlg_inter$deviance/mlg_inter$null.deviance) ; print(paste("Pseudo R² :",pseudoR2))
 ```
-On obtient ainsi un pseudo $R^2$ de 0.720, ce qui est un peu plus élevé que pour le modèle complet (0.713). L'augmentation est cependant très faible, et l'ajout d'interaction est peut-être inutile.
+On obtient ainsi un pseudo $R^2$ de 0.720, ce qui est un peu plus élevé que pour le modèle complet (0.713). L'augmentation est cependant très faible, et l'ajout d'interactions est peut-être inutile.
 
-On fait un test de sous-modèle afin de voir si le modèle sans interaction BIC précédent ne suffirait pas à expliquer nos données :
+On fait un test de sous-modèle afin de voir si le modèle sans interactions BIC précédent ne suffirait pas à expliquer nos données :
 
 ```{r}
 anova(mlg_best_aic,mlg_inter,test="Chisq")
@@ -664,23 +652,29 @@ anova(mlg_best_aic,mlg_inter,test="Chisq")
 
 La p-valeur est de 0.28, on se contente donc du modèle sans interaction, au risque de 5\%.
 
-```{r}
-# utile pour la conclusion
-final_logistic_model = glm(mlg_best_aic$formula, data = data.mlg[train_ind,],family=binomial(link="logit"))
-```
+### Modèle logistique final
 
-## Regression polytomique pour la variable Energy.efficiency
+Finalement, le modèle de régression logistique que nous retenons est le suivant :
 
-###  Mise en forme du jeu de données utilisées
+$$
+\begin{aligned}
+  Energy_i &= \theta_0 + \theta_1 Relative.compactness_i + \theta_2 Glazing.area_i \\
+  &+ \theta_3 \mathbb{I}_{Overall.height_i = 7} + \theta_{4,1} \mathbb{I}_{Glazing.area.distr_i = 1} + \\
+  &+ \theta_{4,2} \mathbb{I}_{Glazing.area.distr_i = 2} + \theta_{4,3} \mathbb{I}_{Glazing.area.distr_i = 3} \\
+  &+ \theta_{4,4} \mathbb{I}_{Glazing.area.distr_i = 4} + \theta_{4,5} \mathbb{I}_{Glazing.area.distr_i = 5}
+\end{aligned}
+$$
 
-Nous souhaiterions maintenant prédire la variable `Energy.efficiency`, à 7 modalités.
+
+## Regression polytomique
+
+Nous avons essayé de faire de la régression polytomique, mais nous n'avons pas eu le temps de s'appesantir dessus. Le code est ainsi présenté dans le fichier `Rmd`, mais n'est pas présenté dans le rapport.
 
 ```{r}
 data.mlg.p<-new_data[,c(-4,-9)]
 ```
-### Statistique descriptive 
-```{r, include=F}
-#Statistique Descriptive
+
+```{r, echo=F, eval=F}
 boxplot(Relative.compactness~ Energy.efficiency,data=data.mlg.p)
 boxplot(Surface.area~ Energy.efficiency,data=data.mlg.p)
 boxplot(Wall.area~ Energy.efficiency,data=data.mlg.p)
@@ -688,38 +682,22 @@ boxplot(Overall.height~ Energy.efficiency,data=data.mlg.p)
 boxplot(Glazing.area~ Energy.efficiency,data=data.mlg.p)
 mosaicplot(table(data.mlg.p[,c("Energy.efficiency","orientation")]))
 ``` 
-L'analyse des figures obtenues nous permet de noter que :
-  * Les classes d'energies A,B,C ont une faible relative compactness par rapport aux classes D,E,F,G
-  * Les classes d'energies A,B,C ont une grande Surface.area par rapport aux classes D,E,F,G
-  * Les classes d'energies B,D,E,F ont en moyenne la même surface de Wall.area, mais pas la même distribution
-    La classe A a une faible surface de Wall.area et la classe G en a une grande
-  * Les classes d'energies A,B,C ont une faible Overall.height par rapport aux classes D,E,F,G
 
-## Modèle linéaire généralisé polytomique additif
-
-Nous allons considérer les niveaux comme ordonnées pour notre analyse, car dans notre cas les 
-les classes ont une signification ordonnée.
-```{r}
-# transformation en variable ordinale
-data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE, levels = c("A", "B", 
-    "C", "D","E","F","G"))
-```
-
-### Ajustement du modèle.
-L'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency
-donc nous devrions considérer le modèle additif avec toutes les autres variables. Cependant, en ajoutant la variable
-Overall.height, la fonction ne parvient pas à faire l'ajustement, donc on ne va pas la considérer.
+<!--   * Les classes A,B,C ont une faible `Relative.compactness` par rapport aux classes D,E,F,G. -->
+<!--   * Les classes A,B,C ont une grande `Surface.area` par rapport aux classes D,E,F,G. -->
+<!--   * Les classes A,B,C ont principalement une hauteur de 3.5 m, contre plutôt 7 m pour les autres. -->
 
 ```{r}
-
-modelord <- vglm(Energy.efficiency ~ Relative.compactness+ Glazing.area  + Glazing.area.distr, data = data.mlg.p, family = acat())
+data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE,
+                                      levels = c("A", "B", "C", "D", "E", "F", "G"))
+# écart de overall.height car facteur ordonnée => posait des problèmles à vglm
+modelord <- vglm(Energy.efficiency ~ Relative.compactness + Glazing.area + Glazing.area.distr, data = data.mlg.p, family = acat())
 ```
 
-```{r}
-#pseudoR2 = 1 - ( modelord$deviance/modelord$null.deviance)
-```
 
-# Non-linear models
+# Modèles non-linéaires
+
+Nous allons maintenant essayer de prédire la consommation énergétique à partir de modèles non linéaires. Nous étudierons dans un premier temps des modèles de classification directe, puis des modèles de régression.
 
 ```{r, echo=F}
 prct_bien_classe=function(table){
@@ -730,70 +708,75 @@ prct_bien_classe=function(table){
 
 ## Classification
 
+Nous essayons d'abord de classer nos données en deux catégories (`Energy.efficiency.bis`) par des algorithmes de classification.
+
 ### Préparation des données
 
-Pour la réalisation de l'arbre optimal, de la régression logistique et du random forest. Nous allons
-scinder notre jeu de données en ensemble d'apprentissage et en ensemble de test. Cela nous permettra
+Pour la réalisation de l'arbre optimal, de la régression logistique et de la forêt aléatoire, nous allons
+scinder notre jeu de données en un ensemble d'apprentissage et un ensemble de test. Cela nous permettra
 de voir la robustesse de notre modèle face à de nouveaux individus.
+
 ```{r}
 data.mlg$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.class = data.mlg
+
+ratio_train = 0.75
+set.seed(2021)
+nb_train <- floor(ratio_train * nrow(data))
+train_ind <- sample(seq_len(nrow(data)), size = nb_train)
 
 train.dis <- data.nlm.class[train_ind, ]
 test.dis <- data.nlm.class[-train_ind, ]
 ```
 
 ### Régression logistique
-Dans la partie modèle linéaire généralisé, nous avions déjà construit un modèle de régression logistique. A partir de ce modèle, nous allons tracé la  table de contingence pour les éléments constituants l'ensemble test.
+
+Dans la partie modèle linéaire généralisé, nous avions déjà construit un modèle de régression logistique. A partir de ce modèle, nous allons tracer la  table de contingence pour les éléments constituants l'ensemble test. Nous pourrons ainsi comparer ces résultats avec ceux des modèles non-linéaires.
+
 ```{r}
 hatY = (mlg$fitted.values > 0.5)
 # Table de contingences pour la régression logistique
 t_reg_log = table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
 t_reg_log
-```
-```{r}
 # Pourcentage de valeurs correctement prédites
 pct_reg_log = prct_bien_classe(t_reg_log)
-pct_reg_log
+print(paste("Pourcentage de bien classés :", pct_reg_log))
 ```
-On retrouve un pourcentage de valeurs corectement prédites de 90,625% pour la régression logistique.
+On retrouve un pourcentage de valeurs correctement prédites de ```r round(pct_reg_log,4)*100```\% pour la régression logistique.
+
 ### Arbre binaire de décision
+
 Dans cette partie, nous allons construire un arbre binaire de décision.
+
 #### Version naïve (``cp`` par défaut)
-```{r, echo=F}
-library(rpart) # chargement de la librairie
-library(rpart.plot)
-```
-Pour la création de cet arbre, nous allons  utiliser la fonction de rpart avec les paramètres par
+
+Pour la création de cet arbre, nous allons  utiliser la fonction `rpart` avec les paramètres par
 défaut.
+
 ```{r}
 tree.dis=rpart(Energy.efficiency.bis~.,data=train.dis, parms = list(split = "information"),cp=0.001)
 rpart.plot(tree.dis)
 ```
-L'analyse de l'arbre binaire de décision permet d'avoir une classification en deux catégories selon la variables Overall.height. Dans la première 
-catégorie (Overall.height = 3.5), il n'y pas d'autre subdivision qui sont faites. On
-Dans la deuxième catégorie où l'Overall.height=7, on observe  que la profondeur de la sous arbre est grande par à l'autre sous catégorie. Ainsi, on en déduit que l'arbre pourrait manquer de flexibilité pour de nouvelles données.
-
+L'analyse de l'arbre binaire de décision permet d'avoir une classification en deux catégories selon la variables `Overall.height`. Quand la hauteur vaut 7, aucune autre subdivision n'est faite. Quand la hauteur vaut 3.5, on observe  que une profondeur importante du sous-arbre. Ainsi, notre arbre pourrait manquer de flexibilité pour de nouvelles données.
 
 ```{r}
 pred.tree <- predict(tree.dis,newdata=test.dis,type="class")
 # Table de contingences pour l'arbre binaire de décision naïf
 t_class_dis = table(pred.tree, test.dis[, "Energy.efficiency.bis"])
 t_class_dis
-```
-
-```{r}
 # Pourcentage de valeurs correctement prédites
 pct_arb_nai_dis = prct_bien_classe(t_class_dis)
-pct_arb_nai_dis
+print(paste("Pourcentage de bien classés :", pct_arb_nai_dis))
 ```
-Après avoir traçé la table de contingence on retrouve un pourcentage 89,06% d'individus bien classés. 
+
+Après avoir tracé la table de contingence on retrouve un pourcentage ```r round(pct_arb_nai_dis,4)*100```\% d'individus bien classés. 
+
 #### Version optimale
 
-L'arbre de décision binaire a pour défaut  de ne pas être flexible pour la prédiction de nouvelle variable. Pour pallier à ce problème, nous
-allons faire la recherche de l'arbre optimal qui minimise la cross validation error.
+L'arbre de décision binaire a pour défaut  de ne pas être flexible pour la prédiction de nouvelles données. Pour pallier ce problème, nous allons rechercher un arbre optimal élagué en pénalisant sa complexité. Nous utilisons pour cela de la validation croisée.
+
 ```{r}
-# Optimisation de cp
+# Optimisation du cp
 xmat <- xpred.rpart(tree.dis)
 
 # Comparaison des valeurs prédite et observée
@@ -804,7 +787,8 @@ cpMin <- as.numeric(attributes(which.min(CVerr))$names)
 tree.dis.opti <- rpart(Energy.efficiency.bis~., data = train.dis, parms = list(split = "information"), cp = cpMin)
 rpart.plot(tree.dis.opti)
 ```
-L'arbre optimal obtenu comporte bien moins de feuilles que ce celui non optimal, ce qui est un signe d'une structure plus flexible (car plus général). Cependant, le pourcentage trouvée sur les données en apprentissage va se voir diminuer.
+L'arbre optimal obtenu comporte bien moins de feuilles que ce celui non optimal, ce qui est un signe d'une structure plus flexible, car plus générale.
+
 ```{r}
 pred.tree.opti <- predict(tree.dis.opti,newdata=test.dis,type="class")
 # Table de contingences pour l'arbre binaire de décision optimal
@@ -814,18 +798,19 @@ t_class_dis
 ```{r}
 # Pourcentage de valeurs correctement prédites
 pct_arb_opti_dis = prct_bien_classe(t_class_dis)
-pct_arb_opti_dis
+print(paste("Pourcentage de bien classés :", pct_arb_opti_dis))
 ```
-Après avoir réalisé la table de contingences sur les données testées, on observe 90,10 % d'individus bien classé, ce qui est supérieur à la valeur trouvée sur l'arbre non optimisée.
+Après avoir réalisé la table de contingences sur les données testées, on observe ```r round(pct_arb_opti_dis,4)*100```\% d'individus bien classés, ce qui est en effet supérieur à la valeur trouvée sur l'arbre non optimisé (moins d'over-fitting).
+
 ### Random forest
-Dans cette partie nous allons contruire une forêt aléatoire, en vue de prédire l'appertance d'un individus à une classe. En effet, nous avons vue précedemment que l'arbre optimal pouvait être instable par rapport aux données d'apprentissage. Ainsi, grâce au bagging et la variable sampling qu'implémente l'algorithme de random forest nous devrions avoir une plus grande stabilité de notre algorithme.
-```{r, echo=F}
-library(randomForest)
-```
+
+Dans cette partie nous allons construire une forêt aléatoire, en vue de prédire l'appartenance d'un individu à une classe. En effet, nous avons vu précédemment que l'arbre optimal pouvait être instable par rapport aux données d'apprentissage. Ainsi, grâce au bagging et au rééchantillonnage des variables qu'implémentent les forêts aléatoires, nous devrions avoir une plus grande stabilité de notre algorithme.
 
 #### Version naïve (``mtry`` par défaut)
-Nous allons commencer par la réalisation d'un random forest avec les paramètres par défaut de la fonction randomForest.
-```{r}
+
+Nous allons commencer par la création d'une random forest avec les paramètres par défaut de la fonction `randomForest`, avant de tester ses performances sur notre jeu de test.
+
+```{r, results='hide'}
 rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train.dis, 
                        xtest = test.dis[, -8], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE)
@@ -836,29 +821,34 @@ pred.rf <- rf.dis$test$predicted
 # Table de contingences pour la random forest naïve
 t_rdm_forest = table(pred.rf, test.dis[,"Energy.efficiency.bis"])
 t_rdm_forest
-```
-```{r}
 # Pourcentage de valeurs correctement prédites
 pct_rdm_nai_dis = prct_bien_classe(t_rdm_forest)
-pct_rdm_nai_dis
+print(paste("Pourcentage de bien classés :", pct_rdm_nai_dis))
 ```
-On observe pour les paramètres par défaut du random forest un pourcentage de 92,18% 
+On observe pour les paramètres par défaut du random forest un pourcentage de bien classés de ```r round(pct_rdm_nai_dis,4)*100```\%.
+
 #### Version optimale
-Dans cette version, on cheche à optimiser le paramètre mtry qui permettrait d'avoir le meilleur arbre en minimisant l'erreur OOB.
-```{r}
-# Optimisation de mtry
+
+Dans cette version, on cherche à optimiser le paramètre `mtry` qui permettrait d'avoir le meilleur arbre en minimisant l'erreur OOB (out of bag). Ce paramètre représente le nombre de variables sélectionnées pour chaque arbre de la forêt.
+
+```{r, results='hide'}
 cvControl <- trainControl(method = "cv", number = 10)
 rfFit <- train(train.dis[, -8], train.dis[, 8], method = "rf", tuneLength = 8,
                trControl = cvControl, trace = FALSE)
-
 rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis, 
                        xtest = test.dis[,-8], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
 ```
 
-```{r, fig.dim=c(8,4)}
+On peut ensuite visualiser l'importance de chaque variable en traçant les graphes d'importance.
+On peut ainsi quantifier l'apport de chaque variable à la construction de l'arbre.
+
+```{r, fig.dim=c(8,3.5), fig.margin=F}
+par(oma = c(0,0,0,0))
 varImpPlot(rf.dis.opti)
 ```
+
+Les variables contribuant le plus à la diminution de la précision et de l'indice de Gini sont celles qui sont les plus influentes. Ainsi les variables concernant la forme des bâtiment sont encore les plus importante, ensuite viennent les variables concernant la surface vitrée, puis finalement l'orientation qui n'a que très peu d'effet. Ces conclusions sont cohérentes avec toutes nos observations jusqu'à présent.
 
 ```{r}
 pred.rf.opti <- rf.dis.opti$test$predicted
@@ -872,11 +862,17 @@ t_rdm_forest_opti
 pct_rdm_opti_dis = prct_bien_classe(t_rdm_forest_opti)
 pct_rdm_opti_dis
 ```
-On obtient le même pourcentage que précedemment, cela est peut-être dû à la stabilité de l'algorithme.
+
+Ici le pourcentage trouvé est un peu plus faible que pour l'arbre naïf, alors que l'on s'attendrait à trouver le contraire. Cela est peut-être dû aux ensembles de test et d'apprentissage. Les deux valeurs sont de toute façon du même ordre de grandeur, et les deux modèles semblent performants.
+
 ## Régression
+
 Dans cette partie, nous allons réaliser les arbres précédents en mode  régression en vue de faire la comparaison aux résultats obtenues pour celle de la classification.
+
 ### Préparation des données
+
 Nous allons aussi travailler sur données d'apprentissage et des données tests.
+
 ```{r}
 new_data$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.reg = new_data[,c(-4,-10)]
@@ -887,14 +883,9 @@ test.reg <- data.nlm.reg[-train_ind, ]
 
 ### Arbre de régression 
 
-```{r, echo=F}
-library(rpart) # chargement de la librairie
-library(rpart.plot)
-```
-
 #### Version naïve (``cp`` par défaut)
 
-```{r}
+```{r, fig.dim=c(8,4)}
 tree.reg=rpart(Energy ~.,data=train.reg, cp=0.001)
 rpart.plot(tree.reg)
 ```
@@ -904,13 +895,10 @@ pred.tree <- predict(tree.reg,newdata=test.reg)
 # Table de contingences pour l'arbre binaire de décision naïf
 t_class_reg = table(pred.tree > 35, test.reg[, "Energy"] > 35)
 t_class_reg
-```
-
-```{r}
-# Pourcentage de valeurs correctement prédites
 pct_arb_nai_reg = prct_bien_classe(t_class_reg)
-pct_arb_nai_reg
+print(paste("Pourcentage de bien classés :", pct_arb_nai_reg))
 ```
+On observe pour l'arbre de régression naïf un pourcentage de bien classés de ```r round(pct_arb_nai_reg,4)*100```\%.
 
 #### Version optimale 
 
@@ -920,32 +908,29 @@ xerr <- (xmat-train.reg[,"Energy"])^2
 CVerr <- apply(xerr, 2, sum)/nrow(xerr)
 ```
 
-```{r}
+```{r, results='hide', fig.show=F}
 # On cherche la valeur de cp qui minimise l'erreur
 cpMin <- as.numeric(attributes(which.min(CVerr))$names)
 tree.reg <- rpart(Energy~., data = train.reg, control = rpart.control(cp = cpMin))
-rpart.plot(tree.reg)
+# rpart.plot(tree.reg)
 ```
 
-```{r}
+```{r, results='hide'}
 pred.treer <- predict(tree.reg,newdata=test.reg)
 # Table de contingences pour l'arbre binaire de décision naïf
 t_reg = table(pred.treer > 35, test.reg[, "Energy"] > 35)
 t_reg
-```
-
-```{r}
-# Pourcentage de valeurs correctement prédites
 pct_arb_opti_reg = prct_bien_classe(t_reg)
 pct_arb_opti_reg
 ```
 
+On obtient pour l'arbre optimal exactement le même arbre que nous avions précédemment, il était donc déjà optimal.
 
 ### Random forest
 
 #### Version naïve (``mtry`` par défaut)
 
-```{r}
+```{r, results='hide'}
 rf.reg <- randomForest(Energy ~ ., data = train.reg, 
                        xtest = test.reg[, c(-8)], ytest = test.reg[, "Energy"],
                        ntree = 500, do.trace = 50, importance = TRUE)
@@ -956,20 +941,16 @@ pred.rf <- rf.reg$test$predicted
 # Table de contingences pour la random forest naïve
 t_rdm_forest = table(pred.rf > 35., test.reg[,"Energy"] > 35.)
 t_rdm_forest
-```
-
-```{r}
-# Pourcentage de valeurs correctement prédites
 pct_rdm_nai_reg = prct_bien_classe(t_rdm_forest)
-pct_rdm_nai_reg
+print(paste("Pourcentage de bien classés :", pct_rdm_nai_reg))
 ```
 
+On observe un pourcentage de bien classés de ```r round(pct_rdm_nai_reg,4)*100```\%.
 
 #### Version optimale
 
-```{r}
+```{r, results='hide'}
 # Optimisation de mtry
-library(caret)
 cvControl <- trainControl(method = "cv", number = 10)
 rfFit <- train(train.reg[, -8], train.reg[, 8], method = "rf", tuneLength = 8,
                trControl = cvControl, trace = FALSE)
@@ -984,15 +965,15 @@ pred.rf.opti <- rf.reg.opti$test$predicted
 # Table de contingences pour la random forest naïve
 t_rdm_forest_opti = table(pred.rf.opti > 35., test.reg[,"Energy"] > 35.)
 t_rdm_forest_opti
-```
-
-```{r}
 # Pourcentage de valeurs correctement prédites
 pct_rdm_opti_reg = prct_bien_classe(t_rdm_forest_opti)
 pct_rdm_opti_reg
+print(paste("Pourcentage de bien classés :", pct_rdm_opti_reg))
 ```
 
-## Tableau récapitulatif
+On observe un pourcentage de bien classés pour la forêt optimale de ```r round(pct_rdm_opti_reg,4)*100```\%.
+
+## Comparaison classification directe et régression à seuil
 
 ```{r}
 df.summarize = data.frame(
@@ -1002,8 +983,6 @@ df.summarize = data.frame(
 row.names(df.summarize) <- c("Regression logisitque", "Arbre optimal", "Random forest")
 df.summarize
 ```
-
-## Comparaison classification directe et régression à seuil
 
 On a cherché à répartir les données en deux classes :
 
@@ -1029,18 +1008,17 @@ Si l'on revient à l'analyse de données, et plus particulièrement à l'ACP, le
 * Axe 2 (23%) : `Wall.area`. Cette variable se retrouve également dans la `Relative.compactness`.
 * Axe 3 (20%) : `Glazing.area`. Cette variable apporte une contribution relativement importante et n'est pas liée à la `Relative.compactness`, il est donc logique de la conserver.
 
-On avait également remarqué que l'ACP différenciait bien les données selon leur `Overall.height`.
-Quant à la `Glazing.area.dist`, nous n'avions pas remarqué d'influence particulière de cette variable.
+Nous avions également vu que `Overall.height` séparait bien nos données vis-à-vis de l'énergie, ce qui explique qu'elle ait été sélectionnée. De même, la présence/absence de vitres était également assez discriminante (modalité 0 contre modalités 1 à 5 de `Glazing.area.distr`).
 
-D'après le graphique de l'importance des variables de la Random Forest, on retrouve la même hiérarchisation de la contribution des variables, à savoir Wall.area (deuxième axe de l'ACP), Surface.area et Relative.compactness (premier axe de l'ACP), puis Glazing.area (troisième axe de l'ACP).
+D'après le graphique de l'importance des variables de la Random Forest, on retrouve la même hiérarchisation de la contribution des variables, à savoir la forme du bâtiment (deux premiers axes de l'ACP), puis la surface vitrée (troisième axe).
 
 # Conclusion
 
-Nous avons ainsi pu mettre en place plusieurs méthodes de prédiction afin de prédire la consommation énergétique des bâtiments. Les résultats obtenus varient d'un modèle à l'autre, mais certaines tendances se dégagent tout de même.
+Nous avons ainsi pu mettre en place plusieurs méthodes afin de prédire la consommation énergétique des bâtiments. Les résultats obtenus varient d'un modèle à l'autre, mais certaines tendances se dégagent tout de même.
 
 D'abord, la variable `orientation` ne sert jamais à rien : tous les modèles l'ont laissée de côté. La consommation d'énergie n'est donc pas lié à l'orientation du bâtiment.
 
-L'influence la plus importante sur la consommation semble être clairement liée à la forme du bâtiment. Ainsi, nos modèle conservent toujours les variables `Relative.compactness` et `Overall.height`. Les variables `Surface.area` et `Wall.area` sont aussi souvent conservée, mais il y a de toute manière un lien entre toutes ces variables.
+L'influence la plus importante sur la consommation semble être clairement liée à la forme du bâtiment. Ainsi, nos modèle conservent toujours les variables `Relative.compactness` et `Overall.height`. `Surface.area` et `Wall.area` sont aussi souvent conservées, mais il y a de toute manière un lien entre toutes ces variables, ce qui fait qu'elles sont parfois laissées de côté.
 
 Finalement, la surface vitrée semble aussi jouer un rôle, même si celui ci est moins important que la forme. Ainsi, les bâtiments moins vitrés consomment moins, ce qui paraît cohérent.
 
@@ -1055,6 +1033,7 @@ test = data[-train_ind,allvariables]
 print("Pourcentage de bien classés (deux classes)")
 
 # regression lineaire
+final_linear_model = lm(modselect_bic_back$terms, data = data[train_ind,])
 test_linear = predict(final_linear_model, test)
 pct_linear = prct_bien_classe(table(test_linear > 35., test[,"Energy"] > 35.))
 print(paste("Régression linéaire :  ", pct_linear))
