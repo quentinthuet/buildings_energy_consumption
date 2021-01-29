@@ -151,7 +151,7 @@ boxplot(Energy ~ Glazing.area.distr, data = data)
 On voit ici que l'orientation ne semble pas avoir d'influence sur l'énergie consommée.
 
 Pour la surface vitrée, on voit que les bâtiments sans vitres (modalité 0 de `Glazing.area.distr`
-et valeur 0 de `Glazing.area`) consomment comment on s'y attend moins d'énergie que les bâtiments vitrés.
+et valeur 0 de `Glazing.area`) consomment moins d'énergie que les bâtiments vitrés,comment on s'y attend.
 En revanche, la distribution des vitres ne semble pas avoir de réel impact
 (modalités 1 à 5 de `Glazing.area.distr`). Il semble cependant qu'il y ait une petite augmentation
 de la consommation avec l'augmentation de la surface vitrée.
@@ -217,15 +217,19 @@ On peut voir sur le premier et le troisième graphique que l'axe 1 marque une cl
 
 Les bâtiments à la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ils sont plus bas et plus compacts, comme on peut le voir sur les graphiques suivants :
 
-```{r, fig.dim=c(7,3)}
+```{r, fig.dim=c(7,4)}
 gg1 = plot(res.acp,choix="ind",axes = c(1,2),invisible="quali",habillage="Relative.compactness",
            label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
 gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Overall.height",
            label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
-grid.arrange(gg1,gg2,ncol=2)
+gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr",
+           label = "none", new.plot = FALSE) + theme(text = element_text(size=5))
+grid.arrange(gg1,gg2,gg3,layout_matrix=layout_matrix)
 ```
 
 Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques.
+
+<!-- INTERPRETATION -->
 
 ## Clustering de variables
 
@@ -1001,13 +1005,17 @@ On remarque que les résultats obtenus par seuillage de la régression sont meil
 On observe en effet la très bonne répartition des bâtiments en deux classes énergétiques (+ de 90% de bâtiments bien classés). Cela est cohérent avec les résultats obtenus en analyse de données. En effet, nous avions remarqué que le découpage en deux classes était très net. La décroissance de la variance inter-classe dans le cadre de la classification hiérarchique ascendante (méthode de Ward.D2) nous avait poussé à répartir les données en deux classes.
 
 Dans le cadre de la régression logistique, les variables suivantes nous semblaient être les plus influentes : 
+
 * Relative.compactness
 * Glazing.area
 * Overall.height
 * Glazing.area.dist
+
 Si l'on revient à l'analyse de données, et plus particulièrement à l'ACP, les variables suivantes contribuaient le plus : 
+
 * Axe 1 (56%) : Relative.compactness, Surface.area, Roof.area. Sachant que Relative.compactness dépend de Surface.area et Roof.area, il est cohérent de ne retrouver que la Relative.compactness dans la sélection de variable.
 * Axe 2 (23%) : Wall.area. Cette variable se retrouve également dans la Relative.compactness.
 * Axe 3 (20%) : Glazing.area. Cette variable apporte une contribution relativement importante et n'est pas liée à la Relative.compactness, il est donc logique de la conserver.
+
 On avait également remarqué que l'ACP différenciait bien les données selon leur Overall.height.
 Quant à la Glazing.area.dist, nous n'avions pas remarqué d'influence particulière de cette variable.
