@@ -263,7 +263,7 @@ par(mfrow=c(1,2), mar = c(4,4,2,1))
 hc = hclust(dist(data[c(1,2,3,4,5,7)]), method = "ward.D2")
 plot(hc, xlab = "")
 abline(h=c(3400,1300,880,200),col="red")
-plot(sort(hc$height, decreasing = TRUE)[1:20], ylab = "Height)
+plot(sort(hc$height, decreasing = TRUE)[1:20], ylab = "Height")
 abline(v=c(1.5,3.5,4.5,11.5),col="red")
 ```
 Sur le dendogramme, deux classes apparaissent clairement. On peut aussi distinguer 4,5 ou 12 classes.
@@ -835,6 +835,12 @@ rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis,
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
 ```
 
+```{r}
+round(importance(rf.dis.opti),2)
+```
+```{r}
+
+```
 ```{r}
 pred.rf.opti <- rf.dis.opti$test$predicted
 # Table de contingences pour la random forest naïve
