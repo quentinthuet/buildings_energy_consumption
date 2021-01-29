@@ -704,9 +704,9 @@ L'analyse des figures obtenues nous permet de noter que :
   * Les classes d'energies A,B,C ont une faible Overall.height par rapport aux classes D,E,F,G
 
 ## Modèle linéaire généralisé polytomique additif
-L'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency
-donc nous devrions considérer le modèle additif avec toutes les autres variables.
-Nous allons considérer les niveaux comme ordonnées pour notre analyse.
+
+Nous allons considérer les niveaux comme ordonnées pour notre analyse, car dans notre cas les 
+les classes ont une signification ordonnée.
 ```{r}
 # transformation en variable ordinale
 data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE, levels = c("A", "B", 
@@ -714,14 +714,17 @@ data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE
 ```
 
 ### Ajustement du modèle.
-
+L'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency
+donc nous devrions considérer le modèle additif avec toutes les autres variables. Cependant, en ajoutant la variable
+Overall.height, la fonction ne parvient pas à faire l'ajustement, donc on ne va pas la considérer.
 
 ```{r}
 
 modelord <- vglm(Energy.efficiency ~ Relative.compactness+ Glazing.area  + Glazing.area.distr, data = data.mlg.p, family = acat())
 ```
 
-```{r]
+```{r}
+#pseudoR2 = 1 - ( modelord$deviance/modelord$null.deviance)
 ```
 
 # Non-linear models
@@ -738,6 +741,7 @@ prct_bien_classe=function(table){
 ### Préparation des données
 
 ```{r}
+data.mlg$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.class = data.mlg
 
 ratio_train = 0.75
@@ -827,8 +831,8 @@ library(randomForest)
 #### Version naïve (``mtry`` par défaut)
 
 ```{r}
-rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train.dis[,c(-4,-7)], 
-                       xtest = test.dis[, c(-4,-7,-8)], ytest = test.dis[, "Energy.efficiency.bis"],
+rf.dis <- randomForest(Energy.efficiency.bis ~ ., data = train.dis, 
+                       xtest = test.dis[, -8], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE)
 ```
 
@@ -855,8 +859,8 @@ cvControl <- trainControl(method = "cv", number = 10)
 rfFit <- train(train.dis[, -8], train.dis[, 8], method = "rf", tuneLength = 8,
                trControl = cvControl, trace = FALSE)
 
-rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis[,c(-4,-7)], 
-                       xtest = test.dis[, c(-4,-7,-8)], ytest = test.dis[, "Energy.efficiency.bis"],
+rf.dis.opti <- randomForest(Energy.efficiency.bis ~ ., data = train.dis, 
+                       xtest = test.dis[,-8], ytest = test.dis[, "Energy.efficiency.bis"],
                        ntree = 500, do.trace = 50, importance = TRUE,mtry=as.integer(rfFit$bestTune))
 ```
 
