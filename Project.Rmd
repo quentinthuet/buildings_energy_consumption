@@ -705,7 +705,7 @@ L'analyse des figures obtenues nous permet de noter que :
 
 ## Modèle linéaire généralisé polytomique additif
 L'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency
-donc nous allons considérer le modèle additif.
+donc nous devrions considérer le modèle additif avec toutes les autres variables.
 Nous allons considérer les niveaux comme ordonnées pour notre analyse.
 ```{r}
 # transformation en variable ordinale
@@ -714,6 +714,7 @@ data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE
 ```
 
 ### Ajustement du modèle.
+
 
 ```{r}
 
