@@ -716,7 +716,8 @@ prct_bien_classe=function(table){
 ### Préparation des données
 
 Pour la réalisation de l'arbre optimal, de la régression logistique et du random forest. Nous allons
-scinder notre jeu de données en train et test.
+scinder notre jeu de données en ensemble d'apprentissage et en ensemble de test. Cela nous permettra
+de voir la robustesse de notre modèle face à de nouveaux individus.
 ```{r}
 data.mlg$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.class = data.mlg
@@ -732,10 +733,9 @@ test.dis <- data.nlm.class[-train_ind, ]
 ```
 
 ### Régression logistique
-Nous allons tracé la  table de contingence par rapport aux données prédites et réelles dans l'ensemble test.
+Dans la partie modèle linéaire généralisé, nous avions déjà construit un modèle de régression logistique. A partir de ce modèle, nous allons tracé la  table de contingence pour les éléments constituants l'ensemble test.
 ```{r}
 hatY = (mlg$fitted.values > 0.5)
-
 # Table de contingences pour la régression logistique
 t_reg_log = table(data.mlg[-train_ind,]$Energy.efficiency.bis, hatY[-train_ind])
 t_reg_log
@@ -745,23 +745,23 @@ t_reg_log
 pct_reg_log = prct_bien_classe(t_reg_log)
 pct_reg_log
 ```
-On retrouve un pourcentage de valeurs corectement prédites de 90,625 pour la régression logistique.
+On retrouve un pourcentage de valeurs corectement prédites de 90,625% pour la régression logistique.
 ### Arbre binaire de décision
-
+Dans cette partie, nous allons construire un arbre binaire de décision.
 #### Version naïve (``cp`` par défaut)
 ```{r, echo=F}
 library(rpart) # chargement de la librairie
 library(rpart.plot)
 ```
-Pour la création de l'arbre binaire de décision, nous allons  utiliser la fonction de rpart avec les paramètres par
+Pour la création de cet arbre, nous allons  utiliser la fonction de rpart avec les paramètres par
 défaut.
 ```{r}
 tree.dis=rpart(Energy.efficiency.bis~.,data=train.dis, parms = list(split = "information"),cp=0.001)
 rpart.plot(tree.dis)
 ```
-L'analyse de l'arbre binaire de décision permet d'avoir une classification en deux catégories selon la variables Overall.height.
-Dans la deuxième catégorie où l'Overall.height=7,c'est la variable Wall.area qui est utilisé pour scinder l'arbe. Cependant on observe  que la profondeur de la sous arbre est grande par à l'autre sous catégorie. Ainsi, on en déduit que l'arbre pourrait manquer de flexibilité pour de 
-nouvelles données.
+L'analyse de l'arbre binaire de décision permet d'avoir une classification en deux catégories selon la variables Overall.height. Dans la première 
+catégorie (Overall.height = 3.5), il n'y pas d'autre subdivision qui sont faites. On
+Dans la deuxième catégorie où l'Overall.height=7, on observe  que la profondeur de la sous arbre est grande par à l'autre sous catégorie. Ainsi, on en déduit que l'arbre pourrait manquer de flexibilité pour de nouvelles données.
 
 
 ```{r}
@@ -776,9 +776,10 @@ t_class_dis
 pct_arb_nai_dis = prct_bien_classe(t_class_dis)
 pct_arb_nai_dis
 ```
-Après avoir traçé la table de contingence on retrouve un pourcentage 89,06% d'individus bien classés.
+Après avoir traçé la table de contingence on retrouve un pourcentage 89,06% d'individus bien classés. 
 #### Version optimale
-L'arbre de décision binaire a pour défaut  de ne pas être flexible pour la prédiction de nouvelle variable. Pour palier à ce problème, nous
+
+L'arbre de décision binaire a pour défaut  de ne pas être flexible pour la prédiction de nouvelle variable. Pour pallier à ce problème, nous
 allons faire la recherche de l'arbre optimal qui minimise la cross validation error.
 ```{r}
 # Optimisation de cp
@@ -792,7 +793,7 @@ cpMin <- as.numeric(attributes(which.min(CVerr))$names)
 tree.dis.opti <- rpart(Energy.efficiency.bis~., data = train.dis, parms = list(split = "information"), cp = cpMin)
 rpart.plot(tree.dis.opti)
 ```
-L'arbre optimal obtenu comporte bien moins de feuilles que ce celui non optimal, ce qui signe d'une structure plus flexible.
+L'arbre optimal obtenu comporte bien moins de feuilles que ce celui non optimal, ce qui est un signe d'une structure plus flexible (car plus général). Cependant, le pourcentage trouvée sur les données en apprentissage va se voir diminuer.
 ```{r}
 pred.tree.opti <- predict(tree.dis.opti,newdata=test.dis,type="class")
 # Table de contingences pour l'arbre binaire de décision optimal
@@ -804,9 +805,9 @@ t_class_dis
 pct_arb_opti_dis = prct_bien_classe(t_class_dis)
 pct_arb_opti_dis
 ```
-Après avoir réalisé la table de contingences sur les données testées, on observe 90,10 % d'individus bien classé.
+Après avoir réalisé la table de contingences sur les données testées, on observe 90,10 % d'individus bien classé, ce qui est supérieur à la valeur trouvée sur l'arbre non optimisée.
 ### Random forest
-
+Dans cette partie nous allons contruire une forêt aléatoire, en vue de prédire l'appertance d'un individus à une classe. En effet, nous avons vue précedemment que l'arbre optimal pouvait être instable par rapport aux données d'apprentissage. Ainsi, grâce au bagging et la variable sampling qu'implémente l'algorithme de random forest nous devrions avoir une plus grande stabilité de notre algorithme.
 ```{r, echo=F}
 library(randomForest)
 ```
@@ -825,16 +826,14 @@ pred.rf <- rf.dis$test$predicted
 t_rdm_forest = table(pred.rf, test.dis[,"Energy.efficiency.bis"])
 t_rdm_forest
 ```
-
 ```{r}
 # Pourcentage de valeurs correctement prédites
 pct_rdm_nai_dis = prct_bien_classe(t_rdm_forest)
 pct_rdm_nai_dis
 ```
-
-
+On observe pour les paramètres par défaut du random forest un pourcentage de 92,18% 
 #### Version optimale
-
+Dans cette version, on cheche à optimiser le paramètre mtry qui permettrait d'avoir le meilleur arbre en minimisant l'erreur OOB.
 ```{r}
 # Optimisation de mtry
 cvControl <- trainControl(method = "cv", number = 10)
@@ -862,11 +861,11 @@ t_rdm_forest_opti
 pct_rdm_opti_dis = prct_bien_classe(t_rdm_forest_opti)
 pct_rdm_opti_dis
 ```
-
+On obtient le même pourcentage que précedemment, cela est peut-être dû à la stabilité de l'algorithme.
 ## Régression
-
+Dans cette partie, nous allons réaliser les arbres précédents en mode  régression en vue de faire la comparaison aux résultats obtenues pour celle de la classification.
 ### Préparation des données
-
+Nous allons aussi travailler sur données d'apprentissage et des données tests.
 ```{r}
 new_data$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.reg = new_data[,c(-4,-10)]
