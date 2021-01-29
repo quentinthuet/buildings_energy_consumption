@@ -569,23 +569,22 @@ Ainsi, les bâtiments à la meilleure consommation énergétique ont une compaci
 une compacité relative faible, une surface totale élevée, une surface de murs faible et une hauteur faible.
     
 ## Modèle linéaire généralisé additif
-Puisque, les variables Surface.area, Wall.area et la Roof.area sont liées, nous allons l'enlever du jeu de données.
-En outre, l'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency.bis
-donc nous allons considérer le modèle additif
+
+Nous allons d'abord construire un modèle linéaire généralisé additif sans interactions.
+
 ### Ajustement du modèle
-```{r}
-# Ajustement du modèle linéaire généralisé additif
-mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit))
-summary(mlg_rg)
+
+```{r, echo=F}
+mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit)) ; #summary(mlg_rg)
 ```
+
 ### Calcul du pseudo R2
+
 ```{r}
-#Calcul de pseudo R2 de mlg_rg
-pseudoR2 = 1 - ( mlg_rg$deviance/mlg_rg$null.deviance)
-print("Pseudo R2 ")
-print(pseudoR2)
+pseudoR2 = 1 - ( mlg_rg$deviance/mlg_rg$null.deviance) ; print(paste("Pseudo R² :",pseudoR2))
 ```
-Le Pseudo R2 trouvé est de 0.712, alors on peut modéliser ce problème par un MLG.
+On trouve un pseudo $R^2$ de 0.71, ce qui n'est pas trop mal. Nous allons voir si nous pouvons simplifier 
+
 ### Recherche de sous modèle
 ```{r}
 print("############################  AIC  #############################")
