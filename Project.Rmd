@@ -16,7 +16,7 @@ geometry: margin=2cm
 \newpage
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.align="center", results="hold", cache = TRUE, fig.dim=c(8,3))
+knitr::opts_chunk$set(echo = F, fig.align="center", results="hold", cache = TRUE, fig.dim=c(8,3))
 library(ggfortify)
 library(VGAM)
 library(ROCR)
@@ -55,8 +55,7 @@ Nous commencerons par une première partie d'analyse naïve de notre jeu de donn
 avant de rentrer plus en profondeur dans la construction de modèles de prédiction.
 
 Les modèles que nous avons implémentés sont des modèles linéaires (classiques 
-et généralisés), ainsi que des modèles non linéaires (classification hiérarchique, 
-arbre optimal, forêts aléatoires).
+et généralisés), ainsi que des modèles non linéaires (arbre optimal, forêts aléatoires).
 
 Nous disposons pour notre étude d'un jeu de données de 768 bâtiments.
 Pour chaque bâtiment, nous possédons les 10 caractéristiques suivantes :
@@ -66,13 +65,13 @@ Pour chaque bâtiment, nous possédons les 10 caractéristiques suivantes :
   + `Surface.area` : surface totale (sol + murs + toit)
   + `Wall.area` : surface de mur extérieurs
   + `Roof.area` : surface de toit
-  + `Glazing.area` : Surface vitrée (en pourcentage de la surface au sol)
-  + `Energy` : Énergie consommée
+  + `Glazing.area` : surface vitrée (en pourcentage de la surface au sol)
+  + `Energy` : énergie consommée
 * Catégorielles :
   + `Overall.height` : hauteur du batiment (soit 3.5, soit 7 m)
   + `orientation` : orientation de la maison (Nord, Sud, Est, Ouest)
-  + `Glazing.area.distr` : Distribution des vitres (uniforme, ou davantage d'un coté)
-  + `Energy.efficiency` : Indicateur de l'énergie consommée (de A (meilleur) à G (pire))
+  + `Glazing.area.distr` : distribution des vitres (uniforme, ou davantage d'un coté)
+  + `Energy.efficiency` : indicateur de l'énergie consommée (de A (meilleur) à G (pire))
   
 On cherchera donc dans les prochaines parties à prédire les variables `Energy` et `Energy.efficiency`. 
 
@@ -82,7 +81,7 @@ Nous allons dans un premier temps réaliser quelques statistiques exploratoires 
 
 ## Statistiques descriptives
 
-```{r}
+```{r, echo=F}
 # Lecture jeu de données, mise sous forme de facteur et corrections
 data = read.table("DataEnergy-Student.csv", header = TRUE, sep = ",")
 data$Glazing.area.distr = as.factor(factor(data$Glazing.area.distr))
@@ -123,7 +122,7 @@ Ainsi, nous n'étudierons pas la variable `Roof.area` plus en détails par la su
 qu'elle peut être directement obtenue depuis d'autres variables.
 <!-- Virer variable Roof.area ? -->
 
-On observe sur le second graphe une relation linéaire entre la compacité relative et l'inverse de la surface totale. Ça n'est pas étonnant au vu de la formule de la compacité relative : $RC = 6 \times V^{0.66} \times A^{-1}$. Cependant, ici la relation linéaire n'est pas exacte comme dans le cas précédent : il y a potentiellement de l'information contenue dans les deux variables. Nous n'en écarterons donc pas une pour notre étude.
+On observe sur le second graphe une relation linéaire entre la compacité relative et l'inverse de la surface totale. Ce n'est pas étonnant au vu de la formule de la compacité relative : $RC = 6 \times V^{0.66} \times A^{-1}$. Cependant, ici la relation linéaire n'est pas exacte comme dans le cas précédent : il y a potentiellement de l'information contenue dans les deux variables. Nous n'en écarterons donc pas une pour notre étude.
 
 Nous avons également essayé de voir quelles étaient les variables les plus influentes sur l'énergie consommée.
 
@@ -151,7 +150,7 @@ boxplot(Energy ~ Glazing.area.distr, data = data)
 On voit ici que l'orientation ne semble pas avoir d'influence sur l'énergie consommée.
 
 Pour la surface vitrée, on voit que les bâtiments sans vitres (modalité 0 de `Glazing.area.distr`
-et valeur 0 de `Glazing.area`) consomment moins d'énergie que les bâtiments vitrés,comment on s'y attend.
+et valeur 0 de `Glazing.area`) consomment moins d'énergie que les bâtiments vitrés, comme on s'y attend.
 En revanche, la distribution des vitres ne semble pas avoir de réel impact
 (modalités 1 à 5 de `Glazing.area.distr`). Il semble cependant qu'il y ait une petite augmentation
 de la consommation avec l'augmentation de la surface vitrée.
@@ -202,7 +201,7 @@ Ainsi, l'énergie dépensée dépend d'abord de la forme du bâtiment, et ensuit
 Nous pouvons également observer les graphes des individus. Nous représentons les différentes classes énergétiques par couleur.
 
 
-```{r, fig.dim=c(7,4)}
+```{r, fig.dim=c(7,3.5)}
 gg1 = plot(res.acp,choix="ind",axes = c(1,2),invisible="quali",habillage="Energy.efficiency",
            label="none", new.plot=F) + theme(text=element_text(size=8),legend.position="none")
 gg2 = plot(res.acp, choix="ind", axes = c(2,3), invisible="quali",habillage="Energy.efficiency",
@@ -215,21 +214,24 @@ grid.arrange(gg1,gg2,gg3,layout_matrix = layout_matrix)
 
 On peut voir sur le premier et le troisième graphique que l'axe 1 marque une claire séparation entre les classes A, B, C et les classes D, E, F, G.
 
-Les bâtiments à la consommation énergétique la plus faible possèdent des coordonnées négatives pour la première composante. Ils sont plus bas et plus compacts, comme on peut le voir sur les graphiques suivants :
+Les bâtiments à la consommation énergétique la plus faible possèdent des coordonnées positives pour la première composante. Ils sont plus bas et moins compacts, comme on peut le voir sur les graphiques suivants :
 
 ```{r, fig.dim=c(7,4)}
 gg1 = plot(res.acp,choix="ind",axes = c(1,2),invisible="quali",habillage="Relative.compactness",
            label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
 gg2 = plot(res.acp, choix="ind", axes = c(1,2), invisible="quali", habillage="Overall.height",
            label = "none", new.plot = FALSE) + theme(text = element_text(size=8))
-gg3 = plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr",
-           label = "none", new.plot = FALSE) + theme(text = element_text(size=5))
-grid.arrange(gg1,gg2,gg3,layout_matrix=layout_matrix)
+grid.arrange(gg1,gg2,ncol=2)
 ```
 
-Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques.
+Ainsi, les maisons plus étalées sur le sol possèdent les meilleures performances énergétiques, de même que les maisons sans vitres.
 
-<!-- INTERPRETATION -->
+```{r, fig.dim=c(6,2)}
+plot(res.acp, choix="ind", axes = c(1,3), invisible="quali", habillage="Glazing.area.distr",
+           label = "none", new.plot = FALSE) + theme(text = element_text(size=5))
+```
+
+On voit également une claire séparation des bâtiments sans vitre sur la troisième composante, qui correspondait à la surface vitrée.
 
 ## Clustering de variables
 
@@ -250,15 +252,13 @@ grid.arrange(gg1,gg2,ncol=2)
 ```
 
 Visuellement, c'est selon la compacité relative et la surface vitrée que l'on distingue le mieux des groupes.
-
 Avec la compacité relative, on constate principalement deux groupes. On peut également voir 12 groupes mais ceux-ci sont moins évidents.
-
 Avec la surface vitrée, on distingue principalement quatre groupes avec deux sous-groupes
 à chaque fois.
 
 ### Clustering hiérarchique
 
-Après cette analyse visuelle, nous allons utiliser des méthodes de clustering pour confirmer ou infirmer nos observations. Commençons par le clustering hiérarchique.
+Après cette analyse visuelle, nous allons utiliser des méthodes de clustering pour confirmer ou infirmer nos observations. Commençons par le clustering hiérarchique. Nous utiliserons le critère de Ward.
 
 <!-- POURQUOI LIGNES ROUGES ? -->
 
@@ -270,10 +270,11 @@ abline(h=c(3400,1300,880,200),col="red")
 plot(sort(hc$height, decreasing = TRUE)[1:20], ylab = "Height")
 abline(v=c(1.5,3.5,4.5,11.5),col="red")
 ```
-Sur le dendogramme, deux classes apparaissent clairement. On peut aussi distinguer 4,5 ou 12 classes.
-Sur le graphique de la variance inter-classe, on observe un saut important au passage à 2 classes. On retrouve également les résultats que l'on a obtenu avec le dendogramme en observant des sauts aux passages à 4, 5 et 12 classes.
+Sur le dendogramme, deux classes apparaissent clairement. On peut aussi distinguer 4, 5 ou 12 classes.
 
-Ces premiers outils semblent confirmer les nombres de classes qui semblent pertinents : 2, 4 et 12.
+Sur le graphique de décroissance la variance inter-classe, on observe un saut important au passage à 2 classes. On retrouve également les résultats que l'on a obtenu avec le dendogramme en observant des sauts aux passages à 4, 5 et 12 classes.
+
+Ces premiers résultats semblent confirmer les nombres de classes pertinents : 2, 4 et 12.
 
 On réalise donc dans un premier temps un découpage en 2, 4 et 12 classes selon le clustering hiérarchique. On superpose ensuite ces classes sur nos graphes précédents.
 
@@ -336,7 +337,7 @@ grid.arrange(gg1,gg2,ncol=2)
 
 Ces deux graphes représentent les découpes obtenues par les k-means (points colorés) et par le clustering hiérarchique (ellipses noires) pour 4 et 12 classes, selon deux variables choisies pour bien représenter la découpe.
 
-Après plusieurs exécutions pour 4 classes, les k-means ne donnent presque jamais les mêmes résultats que le clustering hiérarchique (ellipses noires). Les clusters semblent souvent un peu moins pertinents (par exemple le groupe en haut à droite classé avec le groupe du milieu, assez éloigné).
+Après plusieurs exécutions pour 4 classes, les k-means ne donnent presque jamais les mêmes résultats que le clustering hiérarchique. Les clusters semblent souvent un peu moins pertinents (par exemple le groupe en haut à droite classé avec le groupe du milieu, assez éloigné).
 
 Pour 12 classes, ils donnent des résultats plus proches du clustering hiérarchique. Les séparations dépendent toutefois des exécutions, et semblent globalement un peu moins bien définies qu'avec le clustering hiérarchique.
 
@@ -363,9 +364,7 @@ Nous étudierons dans un premier temps des modèles linéaires expliquant la var
 
 ### Modèle avec interactions
 
-Nous construisons d'abord naïvement premier modèle contenant les variables quantitatives et leurs interactions.
-
-<!-- QQ-PLOT ? -->
+Nous construisons d'abord naïvement un premier modèle contenant les variables quantitatives et leurs interactions.
 
 ```{r, fig.dim=c(8,3)}
 model_quanti_complet = lm(Energy ~ (. - Roof.area)^2, data = data[,quanti])
@@ -381,11 +380,11 @@ ggplot(data) +
 
 Le modèle obtenu semble bien passer au sein des données : on trouve un $R^2$ de 0.8692.
 
-Cependant, ce modèle conserve beaucoup de variables, on peut donc se demander si elles sont toutes pertinentes. Nous allons donc essayer ne n'en conserver que certaines.
+Cependant, ce modèle utilise beaucoup de variables, on peut donc se demander si elles sont toutes pertinentes. Nous allons donc essayer de n'en conserver que certaines.
 
-### Selection de variables par critère BIC
+### Sélection de variables par critère BIC
 
-Nous allons réaliser dans un premier temps une sélection de variables par critère BIC.
+Nous allons réaliser dans un premier temps une sélection de variables par critère BIC à l'aide de la commande `stepAIC`.
 
 ```{r}
 modselect_quanti_bic_back = stepAIC(model_quanti_complet,trace=FALSE,
@@ -394,14 +393,14 @@ f = paste("Energy ~", paste(dimnames(modselect_quanti_bic_back$qr$qr)[[2]][-1], 
 str_break(f)  # pour autoriser des retours à la ligne dans la sortie
 ```
 
-Le modèle selectionné conserve nos 5 des variables quantitatives, mais supprime certaines de de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
+Le modèle selectionné conserve nos 5 variables quantitatives, mais supprime certaines de leur interactions. Afin de s'assurer que l'on peut simplifier notre modèle, on réalise un test de sous-modèle entre le modèle complet et le modèle selectionné.
 
 ```{r}
 anova(modselect_quanti_bic_back, model_quanti_complet)
 paste("R² =", summary(modselect_quanti_bic_back)$r.squared)
 ```
 
-On obtient une p-valeur de 0.1477. On ne rejette donc pas notre modèle selectionné au seuil de 5 \%.
+On obtient une p-valeur de 0.1477. On ne rejette donc pas notre modèle selectionné au seuil de 5\%.
 Ainsi, notre modèle réduit possède un $R^2$ de 0.8685, ce qui est à peine plus faible que ce que nous avions avec toutes nos variables (0.8692).
 
 ### Selection de variable par regression regularisée
@@ -448,7 +447,7 @@ ggplot(df2)+
   geom_line(aes(x=tau,y=cvlo),col="blue",linetype="dotted")
 ```
 
-Nous avons vu que la régression Ridge ne nous donnait pas de résultats très intéressants, il était difficile de voir clairement quelles variables écarter. Nous ne nous attarderons donc pas plus en détails dessus, et nous allons essayer une régression lasso, qui permet d'écarter plus facilement des variables.
+Nous avons vu que la régression Ridge ne nous donnait pas de résultats très intéressants, il était difficile de voir clairement quelles variables écarter. Nous ne nous attarderons donc pas dessus, et nous allons plutôt essayer une régression lasso, qui permet d'écarter plus facilement des variables.
 
 #### Lasso
 
@@ -505,7 +504,7 @@ Ainsi la sélection laisse complètement de côté la variable `orientation`, et
 On réalise un test de sous-modèle afin de vérifier que nous pouvons bien simplifier le modèle complet.
 
 ```{r}
-anova(modselect_bic_back, model_complet)
+print(paste("p-valeur =", anova(modselect_bic_back, model_complet)$`Pr(>F)`)[2])
 ```
 
 On obtient une p-valeur supérieure à 99\%, on ne rejette donc pas le modèle réduit.
@@ -530,9 +529,11 @@ avec $\varepsilon_i \sim \mathcal{N}(0,\sigma^2)$. Pour vérifier cette dernièr
 par(mfrow=c(1,2)) ; plot(modselect_bic_back, which=c(1,2), pch="+", cex=0.6)
 ```
 
-Les graphes ne semblent pas trop mal, il semble toutefois que la variance des résidus correspondant aux hautes valeurs ajustées sont plus élevé que celle des plus faibles. Il y a également un décrochage du QQ-plot en bas à gauche. Ces résultats laissent penser que l'hypothèse de la normalité des résidus n'est pas vraiment vérifiée. Nous allons tout de même tester le pouvoir de prédiction de ce modèle, puis nous essaierons une approche par modèle linéaire généralisé pour voir si nous trouvons de meilleur résultats.
+Il semble que la variance des résidus correspondant aux hautes valeurs ajustées soit plus élevée que celle des plus faibles. Il y a également un décrochage du QQ-plot en bas à gauche. Ces résultats laissent penser que l'hypothèse de la normalité des résidus n'est pas vraiment vérifiée. Nous allons tout de même tester le pouvoir de prédiction de ce modèle, puis nous essaierons une approche par modèle linéaire généralisé pour voir si nous trouvons de meilleur résultats.
 
 ## Pouvoir de prédiction du modèle
+
+### Validation croisée
 
 Maintenant qu'on a déterminé les variables d'intérêt, nous allons tester le pouvoir de prédiction de notre modèle. Pour cela, nous allons faire de la validation croisée. 
 
@@ -545,13 +546,22 @@ print(model_cv)
 
 On obtient un $R^2$ de presque 90\%, le modèle passe donc bien par les données. De plus, l'erreur moyenne absolue de moins de 5. En sachant que la variable `Energy` s'étale de 10 à 95, notre erreur est assez faible : elle représente moins de 6\% de l'étendue de nos données.
 
-# Modèle linéaire généralisée
+```{r}
+# On réalise un jeu de test et un jeu d'entrainement qui nous servirons tout le long de notre étude (voir conclusion)
+ratio_train = 0.75
+set.seed(1999)
+nb_train <- floor(ratio_train * nrow(data))
+train_ind <- sample(seq_len(nrow(data)), size = nb_train)
+final_linear_model = lm(modselect_bic_back$terms, data = data[train_ind,])
+```
+
+# Modèle linéaire généralisé
 
 Nous allons maintenant essayer de prédire l'énergie consommée en utilisant les labels énergétique plutôt que la valeur numérique. Nous allons donc utiliser des modèles linéaires généralisés.
 
 ### Mise en forme des données
 
-Nous allons dans un premier temps séparer notre variable `Energy.efficiency` en deux classes (A/B ou C/D/E/F/G) que nous stockerons dans la varibale `Energy.efficiency.bis`.
+Nous allons dans un premier temps séparer notre variable `Energy.efficiency` en deux classes (A/B ou C/D/E/F/G) que nous stockerons dans la variable `Energy.efficiency.bis` (1 ou 0).
 
 ```{r, echo = F}
 new_data <- data[,allvariables]
@@ -571,10 +581,12 @@ boxplot(Wall.area~Energy.efficiency.bis,data=data.mlg)
 mosaicplot(Energy.efficiency.bis~Overall.height,data=data.mlg,main=NULL)
 ```
 
-Ainsi, les bâtiments à la meilleure consommation énergétique ont une compacité ont
+Ainsi, les bâtiments à la meilleure consommation énergétique ont
 une compacité relative faible, une surface totale élevée, une surface de murs faible et une hauteur faible.
     
-## Modèle linéaire généralisé additif
+## Régression logistique
+
+### Modèle additif
 
 Nous allons d'abord construire un modèle linéaire généralisé additif sans interactions à l'aide de la fonction `glm`.
 
@@ -586,7 +598,7 @@ pseudoR2 = 1 - (mlg$deviance/mlg$null.deviance) ; print(paste("Pseudo R² :",pse
 
 On trouve un pseudo $R^2$ de 0.71, ce qui n'est pas trop mal. Nous allons voir si nous pouvons le simplifier en recherchant un sous-modèle. Pour allons réaliser des sélections par critères BIC et AIC à l'aide de la fonction `bestglm`.
 
-### Recherche de sous modèle
+#### Recherche de sous modèle
 
 ```{r, echo=F, eval=T, warning=F, message=F}
 print("############################  BIC  #############################")
@@ -607,7 +619,7 @@ mlg_best_bic <- glm(Energy.efficiency.bis ~ Relative.compactness + Overall.heigh
 anova(mlg_best_bic,mlg,test="Chisq")
 ```
 
-La p-valeur obtenue étant de 0.003229, donc on rejette le sous modèle AIC au risque de 1\%.
+La p-valeur obtenue est de 0.003229, donc on rejette le sous modèle BIC au risque de 1\%.
 
 #### Test du sous-modèle AIC
 ```{r, echo=F, eval=T}
@@ -623,13 +635,13 @@ Ainsi nous retenons le modèle AIC :
 $$
 \begin{aligned}
   Energy_i &= \theta_0 + \theta_1 Relative.compactness_i + \theta_2 Glazing.area_i \\
-  &+ \theta_3 \mathbb{I}_{Overall.height_i = 7} \theta_{4,1} \mathbb{I}_{Glazing.area.distr_i = 1} + \\
+  &+ \theta_3 \mathbb{I}_{Overall.height_i = 7} + \theta_{4,1} \mathbb{I}_{Glazing.area.distr_i = 1} + \\
   &+ \theta_{4,2} \mathbb{I}_{Glazing.area.distr_i = 2} + \theta_{4,3} \mathbb{I}_{Glazing.area.distr_i = 3} \\
   &+ \theta_{4,4} \mathbb{I}_{Glazing.area.distr_i = 4} + \theta_{4,5} \mathbb{I}_{Glazing.area.distr_i = 5}
 \end{aligned}
 $$
 
-## Modèle avec interactions
+### Modèle avec interactions
 
 Nous allons maintenant essayer de voir si les interactions ne nous apporteraient pas un meilleur modèle.
 Nous ne considérerons que certaines interaction, étant donné que toutes les considérer causait des soucis dans la sélection de modèle plus tard.
@@ -652,6 +664,11 @@ anova(mlg_best_aic,mlg_inter,test="Chisq")
 
 La p-valeur est de 0.28, on se contente donc du modèle sans interaction, au risque de 5\%.
 
+```{r}
+# utile pour la conclusion
+final_logistic_model = glm(mlg_best_aic$formula, data = data.mlg[train_ind,],family=binomial(link="logit"))
+```
+
 ## Regression polytomique pour la variable Energy.efficiency
 
 ###  Mise en forme du jeu de données utilisées
@@ -662,7 +679,7 @@ Nous souhaiterions maintenant prédire la variable `Energy.efficiency`, à 7 mod
 data.mlg.p<-new_data[,c(-4,-9)]
 ```
 ### Statistique descriptive 
-```{r}
+```{r, include=F}
 #Statistique Descriptive
 boxplot(Relative.compactness~ Energy.efficiency,data=data.mlg.p)
 boxplot(Surface.area~ Energy.efficiency,data=data.mlg.p)
@@ -721,12 +738,6 @@ de voir la robustesse de notre modèle face à de nouveaux individus.
 ```{r}
 data.mlg$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.class = data.mlg
-
-ratio_train = 0.75
-
-# On sépare les données en un ensemble d'apprentissage et un ensemble de test
-nb_train <- floor(ratio_train * nrow(data.nlm.class))
-train_ind <- sample(seq_len(nrow(data.nlm.class)), size = nb_train)
 
 train.dis <- data.nlm.class[train_ind, ]
 test.dis <- data.nlm.class[-train_ind, ]
@@ -869,10 +880,6 @@ Nous allons aussi travailler sur données d'apprentissage et des données tests.
 ```{r}
 new_data$Overall.height = factor(data$Overall.height, ordered = FALSE)
 data.nlm.reg = new_data[,c(-4,-10)]
-
-# On sépare les données en un ensemble d'apprentissage et un ensemble de test
-nb_train <- floor(ratio_train * nrow(data.nlm.reg))
-train_ind <- sample(seq_len(nrow(data.nlm.reg)), size = nb_train)
 
 train.reg <- data.nlm.reg[train_ind, ]
 test.reg <- data.nlm.reg[-train_ind, ]
@@ -1026,3 +1033,44 @@ On avait également remarqué que l'ACP différenciait bien les données selon l
 Quant à la `Glazing.area.dist`, nous n'avions pas remarqué d'influence particulière de cette variable.
 
 D'après le graphique de l'importance des variables de la Random Forest, on retrouve la même hiérarchisation de la contribution des variables, à savoir Wall.area (deuxième axe de l'ACP), Surface.area et Relative.compactness (premier axe de l'ACP), puis Glazing.area (troisième axe de l'ACP).
+
+# Conclusion
+
+Nous avons ainsi pu mettre en place plusieurs méthodes de prédiction afin de prédire la consommation énergétique des bâtiments. Les résultats obtenus varient d'un modèle à l'autre, mais certaines tendances se dégagent tout de même.
+
+D'abord, la variable `orientation` ne sert jamais à rien : tous les modèles l'ont laissée de côté. La consommation d'énergie n'est donc pas lié à l'orientation du bâtiment.
+
+L'influence la plus importante sur la consommation semble être clairement liée à la forme du bâtiment. Ainsi, nos modèle conservent toujours les variables `Relative.compactness` et `Overall.height`. Les variables `Surface.area` et `Wall.area` sont aussi souvent conservée, mais il y a de toute manière un lien entre toutes ces variables.
+
+Finalement, la surface vitrée semble aussi jouer un rôle, même si celui ci est moins important que la forme. Ainsi, les bâtiments moins vitrés consomment moins, ce qui paraît cohérent.
+
+Pour ce qui est des performances des modèles, nous les avons comparé sur les mêmes jeux d'entraînement et de test. Comme précédemment, nous n'avons comparé que les régressions, en seuillant la consommation à 35 (classes A/B contre C/D/E/F/G).
+
+```{r, echo=F, eval=T}
+final_tree   = tree.reg
+final_forest = rf.reg.opti
+
+test = data[-train_ind,allvariables]
+
+print("Pourcentage de bien classés (deux classes)")
+
+# regression lineaire
+test_linear = predict(final_linear_model, test)
+pct_linear = prct_bien_classe(table(test_linear > 35., test[,"Energy"] > 35.))
+print(paste("Régression linéaire :  ", pct_linear))
+
+# regression logistique
+print(paste("Régression logistique :", pct_reg_log))
+
+# arbre de regression
+print(paste("Arbre de régression :  ", pct_arb_opti_reg))
+
+# foret de regression
+print(paste("Forêt aléatoire :      ", pct_rdm_opti_reg))
+```
+
+Ainsi, le modèle linéaire classique est le moins performant. Nous avions en effet observé un décrochage sur le QQ-plot, qui supposait que ce type de modèle n'était pas très adapté.
+
+La régression logistique est meilleure, mais ce sont finalement les arbres et la forêt aléatoire qui prédisent le mieux la consommation énergétique.
+
+Les modèles non-linéaires se sont donc finalement révélés meilleurs que les modèles linéaires pour cette étude.
