@@ -558,7 +558,6 @@ data.mlg<-data.mlg[,c(-4,-9,-10)]
 
 ### Statistique descriptive 
 ```{r}
-#Statistique Descriptive
 boxplot(Relative.compactness~ Energy.efficiency.bis,data=data.mlg)
 boxplot(Surface.area~ Energy.efficiency.bis,data=data.mlg)
 boxplot(Wall.area~ Energy.efficiency.bis,data=data.mlg)
@@ -575,10 +574,10 @@ Energy.efficiency.bis nous permet de noter les points suivant :
 * Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis
     
 ## Modèle linéaire généralisé additif
-Puisque, les variables Surface.area, Wall.area et la Roof.area sont liées, nous allons l'enlever du jeu de données.
+Puisque, les variables Surface.area, Wall.area et la Roof.area sont linéairement liées, nous allons enlever une de ces variables (Roof.area) du jeu de données.
 En outre, l'analyse statistique nous a permis d'identifier que toutes les variables avaient des effets sur l'Energy.efficiency.bis
-donc nous allons considérer le modèle additif
-### Ajustement du modèle
+donc nous allons considérer le modèle additif pour commencer notre étude.
+
 ```{r}
 # Ajustement du modèle linéaire généralisé additif
 mlg_rg <- glm(Energy.efficiency.bis~.,data=data.mlg,family=binomial(link=logit))
@@ -591,7 +590,8 @@ pseudoR2 = 1 - ( mlg_rg$deviance/mlg_rg$null.deviance)
 print("Pseudo R2 ")
 print(pseudoR2)
 ```
-Le Pseudo R2 trouvé est de 0.712, alors on peut modéliser ce problème par un MLG.
+Le Pseudo R2 trouvé est de 0.712, est assez proche de 1, alors on peut modéliser ce problème par un MLG.
+
 ### Recherche de sous modèle
 ```{r}
 print("############################  AIC  #############################")
@@ -602,17 +602,17 @@ print("############################  BIC  #############################")
 mlg.AIC <- bestglm(data.mlg, family = binomial, IC = "AIC")
 mlg.AIC$BestModel
 ```
-###Choix du sous modéle.
+### Choix du sous modéle.
+
 #### Comparaison du modèle complet avec le modèle AIC
 
 
 ```{r}
-#
 mlg_rg_best_aic <- glm(Energy.efficiency.bis~Relative.compactness + Overall.height+Glazing.area,family=binomial(link=logit),data=data.mlg)
 anova(mlg_rg_best_aic,mlg_rg,test="Chisq")
 ```
 
-La pvaleur obtenue étant de 0.003229  donc on rejette le modéle AIC au risque de 5%. 
+La pvaleur obtenue étant de 0.003229  donc on rejette le sous modéle AIC au risque de 1%. 
 
 #### Comparaison du modèle complet avec le modèle BIC
 ```{r}
@@ -624,10 +624,17 @@ mlg_rg_best_bic <- glm(Energy.efficiency.bis~Relative.compactness + Glazing.area
 summary(mlg_rg_best_bic)
 anova(mlg_rg_best_bic,mlg_rg,test="Chisq")
 ```
-La pvaleur obtenue étant de 0.5543 on retient le modèle BIC au risque 5%
+La pvaleur obtenue étant de 0.5543 on retient le modèle BIC au risque 5%.
+
+#### Conclusion  :
+L'analyse des sous modéles fournis par la fonction bestglm  (avec comme critére AIC et BIC) de R nous a permis de retenir le 
+sous modèle suivant (celui du BIC) :Energy.efficiency.bis ~ Relative.compactness + Glazing.area + 
+    Overall.height + Glazing.area.distr
 
 ## Modèle avec intéraction
 Regardons si le modèle avec intéraction définit mieux le problème de regression.
+Pour cela nous allons considérer les intéractions entre Surface.area et Relative.compactness, entre Wall.area et Glazing.area et
+entre Surface.area et Wall.area. Pour des questions de performances de l'algorithme nous avons choisies de ne pas considérer toutes les intéractions.
 ```{r}
 #Ajustement du modèle complet avec intéraction 
 mlg_rg_inter <- glm(Energy.efficiency.bis~Relative.compactness + 
@@ -643,7 +650,7 @@ pseudoR2 = 1 - ( mlg_rg_inter$deviance/mlg_rg_inter$null.deviance)
 print("Pseudo R2 ")
 print(pseudoR2)
 ```
-Le pseudo R2 obtenu est de 0.7796646 (contre  0.712583 pour le modèle additif).
+Le pseudo R2 obtenu est de 0.7194924 (contre  0.712583 pour le modèle additif), il est meilleur mais à l'ordre de 10e-3
 
 ### Recherche de sous modèle
 ```{r}
@@ -653,25 +660,27 @@ summary(modelbestinter)
 ### Comparaison du modèle complet avec le sous modèle trouvé par la méthode du step
 ```{r}
 
-mlg_inter_best_aic <- glm(Energy.efficiency.bis ~ Relative.compactness + Surface.area + 
+mlg_inter_best <- glm(Energy.efficiency.bis ~ Relative.compactness + Surface.area + 
     Wall.area + Overall.height + orientation + Glazing.area + 
     Glazing.area.distr + Surface.area:Wall.area,family=binomial(link=logit),data=data.mlg)
-summary(mlg_inter_best_aic)
-anova(mlg_inter_best_aic,mlg_rg_inter,test="Chisq")
+summary(mlg_inter_best)
+anova(mlg_inter_best,mlg_rg_inter,test="Chisq")
 ```
 
-La pvaleur étant de 0.9577 on ne rejette donc pas H0
+La pvaleur étant de 0.3212 on ne rejette donc pas H0
 ON conserve le sous  modèle AIC
-## Choix du meilleur sous modèle
-Comparaison du modèle AIC sans intéraction avec le modèle AIC avec intéraction 
+## Choix du meilleur sous modèle entre celui avec intéraction et sans intéractions
+Comparaison du modèle sans intéraction avec le sous modéle avec intéraction 
 Dans ce cas précis les modèle sans intéraction est un sous modèle de celui avec intéraction donc
-on peut réaliser un test de sous modèle
+on peut réaliser un test de sous modèle de "Chisq" de R.
 ```{r}
-anova(mlg_rg_best_aic,mlg_inter_best_aic,test="Chisq")
+anova(mlg_rg_best_bic,mlg_inter_best,test="Chisq")
 ```
 
-La pvaleur étant de 0.006016 on rejette H0
-Donc on conserve mlg_inter_best_aic.
+La pvaleur étant de 0.18 donc on conserve le modéle sans intéraction.
+suivant :
+ Energy.efficiency.bis ~ Relative.compactness + Glazing.area + 
+    Overall.height + Glazing.area.distr
 
 ## Regression polytomique pour la variable Energy.efficiency
 ###  Mise en forme du jeu de données utilisées
@@ -709,8 +718,13 @@ data.mlg.p$Energy.efficiency = factor(data.mlg.p$Energy.efficiency, order = TRUE
 ```
 
 ### Ajustement du modèle.
+
 ```{r}
-modelord <- vglm(Energy.efficiency ~ Relative.compactness, data = data.mlg.p, family = acat())
+
+modelord <- vglm(Energy.efficiency ~ Relative.compactness+ Glazing.area  + Glazing.area.distr, data = data.mlg.p, family = acat())
+```
+
+```{r]
 ```
 
 # Non-linear models
