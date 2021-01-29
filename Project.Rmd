@@ -541,37 +541,33 @@ print(model_cv)
 
 On obtient un $R^2$ de presque 90\%, le modèle passe donc bien par les données. De plus, l'erreur moyenne absolue de moins de 5. En sachant que la variable `Energy` s'étale de 10 à 95, notre erreur est assez faible : elle représente moins de 6\% de l'étendue de nos données.
 
-
 # Modèle linéaire généralisée
 
-### Mise en forme de la data Frame
+Nous allons maintenant essayer de prédire l'énergie consommée en utilisant les labels énergétique plutôt que la valeur numérique. Nous allons donc utiliser des modèles linéaires généralisés.
+
+### Mise en forme des données
+
+Nous allons dans un premier temps séparer notre variable `Energy.efficiency` en deux classes (A/B ou C/D/E/F/G) que nous stockerons dans la varibale `Energy.efficiency.bis`.
+
 ```{r}
-# Modéle linéaire généralisée
-# Définition de Energy.efficiencyBIs
-new_data <- data[,c(-11,-12,-13,-14,-15)]
-data.mlg = data.frame(new_data, Energy.efficiency.bis = rep(0, nrow(new_data)))
-data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency == "A" | data.mlg$Energy.efficiency == "B")] = "1"
-data.mlg$Energy.efficiency.bis[which(data.mlg$Energy.efficiency !="A" & data.mlg$Energy.efficiency !="B" )] = "0"
+new_data <- data[,allvariables]
+data.mlg = data.frame(new_data[,-c(4,9,10)], Energy.efficiency.bis = rep(0, nrow(new_data)))
+data.mlg$Energy.efficiency.bis[which(is.element(data$Energy.efficiency, c("A","B")))]="1"
+data.mlg$Energy.efficiency.bis[which(!is.element(data$Energy.efficiency, c("A","B")))]="0"
 data.mlg$Energy.efficiency.bis = as.factor(data.mlg$Energy.efficiency.bis)
-data.mlg<-data.mlg[,c(-4,-9,-10)]
 ```
 
 ### Statistique descriptive 
-```{r}
-boxplot(Relative.compactness~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Surface.area~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Wall.area~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Overall.height~ Energy.efficiency.bis,data=data.mlg)
-boxplot(Glazing.area~ Energy.efficiency.bis,data=data.mlg)
-mosaicplot(table(data.mlg[,c("Energy.efficiency.bis","orientation")]))
-```
-L'analyse descriptive du modèle linéaire généralisé  par rapport à la variable 
-Energy.efficiency.bis nous permet de noter les points suivant :
 
-* Les individus qui ont une meilleure Energy.efficiency.bis ont une Relative compactness faible.
-* Les individus qui ont une meilleure Energy.efficiency.bis ont une Surface.area plus grande.
-* Les individus qui ont une meilleure Energy.efficiency.bis ont des surface de Wall.area faible.
-* Les batiments ayant une overall height faible ont une meilleur Energy.efficiency.bis
+```{r, fig.dim=c(8,4)}
+par(mfrow=c(2,2), mai=c(1,1,0.1,0))
+boxplot(Relative.compactness~Energy.efficiency.bis,data=data.mlg,ylab="Compacité")
+boxplot(Surface.area~Energy.efficiency.bis,data=data.mlg)
+boxplot(Wall.area~Energy.efficiency.bis,data=data.mlg)
+mosaicplot(Energy.efficiency.bis~Overall.height,data=data.mlg,main=NULL)
+```
+Ainsi, les bâtiments à la meilleure consommation énergétique ont une compacité ont
+une compacité relative faible, une surface totale élevée, une surface de murs faible et une hauteur faible.
     
 ## Modèle linéaire généralisé additif
 Puisque, les variables Surface.area, Wall.area et la Roof.area sont linéairement liées, nous allons enlever une de ces variables (Roof.area) du jeu de données.
